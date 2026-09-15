@@ -348,6 +348,10 @@ Reverse-chronological; evidence belongs in the owning docs.
 - Native reader is recursive: `--mix-tree` and `--mix-extract` descend nested
   archives; verified by full extraction of `ra2.mix` (5,683 files) matching the
   Python tool, and by a nested-archive unit test.
+- Platform bring-up: SDL3 window backend and bgfx renderer are wired behind
+  `RA2YR_ENABLE_SDL3`/`RA2YR_ENABLE_BGFX`. Verified on Linux by opening an SDL3
+  window and initializing bgfx (Vulkan/AMD radv), rendering to timeout and
+  shutting down cleanly. Default dependency-free build and tests unchanged.
 
 ---
 

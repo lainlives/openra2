@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
+#include <memory>
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -11,6 +12,10 @@
 #include "core/version.h"
 #include "platform/platform.h"
 #include "vfs/mix.h"
+
+#if defined(RA2YR_RENDER_BGFX)
+#include "render/bgfx_renderer.h"
+#endif
 
 namespace {
 
@@ -204,7 +209,18 @@ int main(int argc, char** argv) {
     ra2yr::set_log_level(ra2yr::LogLevel::Info);
     ra2yr::log_info(ra2yr::build_summary(), " starting");
 
-    auto platform = ra2yr::platform::make_null_platform();
+    std::unique_ptr<ra2yr::platform::Platform> platform;
+#if defined(RA2YR_PLATFORM_SDL)
+    if (!headless) {
+        platform = ra2yr::platform::make_sdl_platform();
+        if (!platform) {
+            ra2yr::log_warn("SDL3 unavailable; falling back to headless");
+        }
+    }
+#endif
+    if (!platform) {
+        platform = ra2yr::platform::make_null_platform();
+    }
     ra2yr::log_info("platform backend: ", platform->name());
 
     ra2yr::platform::WindowDesc desc;
@@ -213,15 +229,51 @@ int main(int argc, char** argv) {
     desc.title = "ra2yr";
     desc.visible = !headless;
     auto window = platform->create_window(desc);
+    if (!window) {
+        ra2yr::log_error("failed to create a window");
+        return 1;
+    }
     ra2yr::log_info("window: ", window->width(), "x", window->height());
 
+#if defined(RA2YR_RENDER_BGFX)
+    ra2yr::render::BgfxRenderer renderer;
+    if (!headless) {
+        std::string render_error;
+        if (!renderer.initialize(window->native_window(), window->width(),
+                                 window->height(), &render_error)) {
+            ra2yr::log_error(render_error);
+            return 1;
+        }
+        ra2yr::log_info("renderer: ", renderer.backend());
+    }
+#endif
+
+    [[maybe_unused]] int last_width = window->width();
+    [[maybe_unused]] int last_height = window->height();
+    if (!headless && window->native_window().handle == nullptr) {
+        ra2yr::log_warn("no native window available; exiting after one frame");
+        headless = true;
+    }
     while (!window->should_close()) {
         window->poll();
         if (headless) {
             break;
         }
+#if defined(RA2YR_RENDER_BGFX)
+        if (renderer.valid()) {
+            if (window->width() != last_width || window->height() != last_height) {
+                last_width = window->width();
+                last_height = window->height();
+                renderer.resize(last_width, last_height);
+            }
+            renderer.render();
+        }
+#endif
     }
 
+#if defined(RA2YR_RENDER_BGFX)
+    renderer.shutdown();
+#endif
     ra2yr::log_info("shutdown");
     return 0;
 }

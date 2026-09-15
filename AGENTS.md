@@ -36,6 +36,13 @@ Third-party libraries live in `third-party/` as submodules and are built only
 when their `RA2YR_ENABLE_*` option is on, so the default build and CI need no
 external code.
 
+The SDL3 window backend and bgfx renderer are off by default:
+
+```
+cmake -S . -B build/gfx -G Ninja -DRA2YR_ENABLE_SDL3=ON -DRA2YR_ENABLE_BGFX=ON
+cmake --build build/gfx
+```
+
 The MIX tooling:
 
 ```

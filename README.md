@@ -33,6 +33,19 @@ ctest --preset default
 Third-party code is built only when its `RA2YR_ENABLE_*` option is on, so the
 default build and CI need no external code.
 
+### Window and renderer
+
+SDL3 and bgfx are vendored and off by default. To build the windowed engine:
+
+```
+cmake -S . -B build/gfx -G Ninja \
+    -DRA2YR_ENABLE_SDL3=ON -DRA2YR_ENABLE_BGFX=ON
+cmake --build build/gfx
+./build/gfx/src/ra2yr
+```
+
+This opens an SDL3 window and initializes bgfx (renderer auto-selected).
+
 On Windows, configure manually if you prefer:
 
 ```

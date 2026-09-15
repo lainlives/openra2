@@ -17,6 +17,14 @@ struct WindowDesc {
     bool visible = true;
 };
 
+// A window handle in the shape bgfx expects. `handle`/`display` are backend
+// specific (X11 Window + Display*, Wayland wl_surface + wl_display, HWND).
+struct NativeWindow {
+    void* handle = nullptr;
+    void* display = nullptr;
+    bool wayland = false;
+};
+
 class Window {
 public:
     virtual ~Window() = default;
@@ -26,6 +34,7 @@ public:
     virtual bool should_close() const = 0;
     virtual int width() const = 0;
     virtual int height() const = 0;
+    virtual NativeWindow native_window() const { return {}; }
 };
 
 class Platform {
@@ -42,5 +51,11 @@ public:
 // Headless backend: no window, no input, no audio. Always available and used by
 // tests and CI so the build stays free of SDK dependencies.
 std::unique_ptr<Platform> make_null_platform();
+
+#if defined(RA2YR_PLATFORM_SDL)
+// SDL3 backend. Returns nullptr if SDL cannot be initialized (for example on a
+// headless host), so callers can fall back to the null platform.
+std::unique_ptr<Platform> make_sdl_platform();
+#endif
 
 }  // namespace ra2yr::platform
