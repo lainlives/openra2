@@ -45,6 +45,7 @@ python3 scripts/mixer.py extract -r -d out <archive.mix>
 python3 scripts/mixer.py manifest -o out.csv <archive.mix> ...
 python3 scripts/mixer.py mount  <archive.mix> <mountpoint>
 python3 scripts/mixdiff.py old-tree new-tree -o report.txt
+python3 scripts/names_from_binary.py "<game>/gamemd.exe" -o reference/ra2-names-binary.txt
 ```
 
 The native reader needs no key file; retail archives carry no names, so pass a
@@ -82,3 +83,14 @@ name database (one filename per line) to resolve them:
 - Run the narrowest relevant tests first; report exact commands and results.
 - Asset-free tests must remain runnable in CI.
 - Do not turn a build result into a runtime claim.
+
+## Commits
+
+- Commit after each completed todo item; do not batch unrelated work.
+- If the change has tests, commit only after they pass (`ctest --preset
+  default` at minimum for code changes, plus the narrower relevant tests). If a
+  change has no applicable tests, say so when reporting it.
+- Keep commits small and focused with an imperative subject.
+- Never commit game assets, `reference/`, build output, or generated caches.
+- Do not push or rewrite history without explicit permission.
+

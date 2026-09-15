@@ -340,6 +340,11 @@ Reverse-chronological; evidence belongs in the owning docs.
 - Known gap: retail archives do not embed a name database, so the reader takes
   an optional external name list; an embedded/derived YR name database is
   still to be built (M2).
+- Name DB: `scripts/names_from_binary.py` harvests filename strings from the
+  game binaries (540 candidates). The community list already covers 99.93% of
+  entries; the binary adds the two patch files it missed (`WAITCYLO.SHP`,
+  `WAITCYLO.PAL`). Combined dev database covers 13,010/13,015 entries; the 5
+  remaining are unnamed mod/patch files.
 
 ---
 
