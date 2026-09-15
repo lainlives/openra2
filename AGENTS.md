@@ -49,10 +49,13 @@ python3 scripts/names_from_binary.py "<game>/gamemd.exe" -o reference/ra2-names-
 ```
 
 The native reader needs no key file; retail archives carry no names, so pass a
-name database (one filename per line) to resolve them:
+name database (one filename per line) to resolve them. Recursion into nested
+`.mix` entries also needs names, since unnamed entries are `_<ID>`:
 
 ```
 ./build/default/src/ra2yr --names reference/ra2-names.txt --mix-list <archive.mix>
+./build/default/src/ra2yr --names reference/ra2-names.txt --mix-tree <archive.mix>
+./build/default/src/ra2yr --names reference/ra2-names.txt --mix-extract <archive.mix> <dir>
 ```
 
 ## Layout

@@ -5,6 +5,8 @@
 #include <cctype>
 #include <cstdio>
 #include <cstring>
+#include <functional>
+#include <memory>
 
 #include "blowfish.h"
 #include "mix_key.h"
@@ -334,6 +336,92 @@ const MixEntry* MixArchive::find(std::uint32_t id) const {
 
 std::vector<std::uint8_t> MixArchive::read(const MixEntry& entry) const {
     return read_at_vec(body_offset_ + entry.offset, entry.size);
+}
+
+bool is_mix_filename(std::string_view name) {
+    if (name.size() < 4) {
+        return false;
+    }
+    const std::string_view ext = name.substr(name.size() - 4);
+    return std::tolower(static_cast<unsigned char>(ext[0])) == '.' &&
+           std::tolower(static_cast<unsigned char>(ext[1])) == 'm' &&
+           std::tolower(static_cast<unsigned char>(ext[2])) == 'i' &&
+           std::tolower(static_cast<unsigned char>(ext[3])) == 'x';
+}
+
+namespace {
+
+void expand_recursive(const std::shared_ptr<MixArchive>& archive,
+                      const std::vector<std::string>& chain, int depth, int max_depth,
+                      const NameDatabase* names, std::vector<MixLeaf>* leaves,
+                      const std::function<void(const MixArchive&, int)>* archive_visitor,
+                      std::string* error) {
+    if (archive_visitor != nullptr && *archive_visitor) {
+        (*archive_visitor)(*archive, depth);
+    }
+    for (const MixEntry& entry : archive->entries()) {
+        if (is_mix_filename(entry.name) && depth < max_depth) {
+            std::string nested_error;
+            auto nested = MixArchive::open_memory(archive->read(entry), entry.name,
+                                                  &nested_error, names);
+            if (nested) {
+                auto nested_ptr = std::make_shared<MixArchive>(std::move(*nested));
+                std::vector<std::string> child_chain = chain;
+                child_chain.push_back(entry.name);
+                expand_recursive(nested_ptr, child_chain, depth + 1, max_depth, names,
+                                 leaves, archive_visitor, error);
+                continue;
+            }
+            if (error != nullptr && !nested_error.empty()) {
+                *error = nested_error;
+            }
+            // Fall through: a .mix that does not parse is kept as a leaf.
+        }
+        if (leaves != nullptr) {
+            MixLeaf leaf;
+            leaf.name = entry.name;
+            leaf.id = entry.id;
+            leaf.size = entry.size;
+            leaf.chain = chain;
+            std::shared_ptr<MixArchive> keep = archive;
+            leaf.read = [keep, entry]() { return keep->read(entry); };
+            leaves->push_back(std::move(leaf));
+        }
+    }
+}
+
+std::shared_ptr<MixArchive> open_root(const std::filesystem::path& path,
+                                      const NameDatabase* names, std::string* error) {
+    auto root = MixArchive::open(path, error, names);
+    if (!root) {
+        return nullptr;
+    }
+    return std::make_shared<MixArchive>(std::move(*root));
+}
+
+}  // namespace
+
+std::vector<MixLeaf> enumerate_leaves(const std::filesystem::path& path,
+                                      const NameDatabase* names, int max_depth,
+                                      std::string* error) {
+    std::vector<MixLeaf> leaves;
+    auto root = open_root(path, names, error);
+    if (!root) {
+        return leaves;
+    }
+    const std::function<void(const MixArchive&, int)>* no_visitor = nullptr;
+    expand_recursive(root, {root->name()}, 0, max_depth, names, &leaves, no_visitor, error);
+    return leaves;
+}
+
+void for_each_archive(const std::filesystem::path& path,
+                      const std::function<void(const MixArchive&, int depth)>& visitor,
+                      const NameDatabase* names, int max_depth, std::string* error) {
+    auto root = open_root(path, names, error);
+    if (!root) {
+        return;
+    }
+    expand_recursive(root, {root->name()}, 0, max_depth, names, nullptr, &visitor, error);
 }
 
 }  // namespace ra2yr::vfs

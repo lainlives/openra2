@@ -345,6 +345,9 @@ Reverse-chronological; evidence belongs in the owning docs.
   entries; the binary adds the two patch files it missed (`WAITCYLO.SHP`,
   `WAITCYLO.PAL`). Combined dev database covers 13,010/13,015 entries; the 5
   remaining are unnamed mod/patch files.
+- Native reader is recursive: `--mix-tree` and `--mix-extract` descend nested
+  archives; verified by full extraction of `ra2.mix` (5,683 files) matching the
+  Python tool, and by a nested-archive unit test.
 
 ---
 

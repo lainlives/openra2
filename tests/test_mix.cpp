@@ -1,6 +1,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <string>
 #include <utility>
@@ -104,8 +106,48 @@ std::vector<std::uint8_t> make_old_mix(
     return out;
 }
 
-void test_old_format_roundtrip() {
-    const std::vector<std::uint8_t> data_a = {'h', 'e', 'l', 'l', 'o'};
+void test_nested_recursion() {
+    const std::vector<std::uint8_t> leaf = {9, 8, 7, 6};
+    const auto inner = make_old_mix({{"leaf.bin", leaf}});
+    const std::vector<std::uint8_t> top = {1, 2, 3};
+    const auto outer = make_old_mix({{"inner.mix", inner}, {"top.txt", top}});
+
+    const auto path =
+        std::filesystem::temp_directory_path() / "ra2yr_test_nested.mix";
+    {
+        std::ofstream out(path, std::ios::binary);
+        out.write(reinterpret_cast<const char*>(outer.data()),
+                  static_cast<std::streamsize>(outer.size()));
+    }
+
+    std::string error;
+    ra2yr::vfs::NameDatabase names;
+    names.add("inner.mix");
+    names.add("leaf.bin");
+    names.add("top.txt");
+    const auto leaves = ra2yr::vfs::enumerate_leaves(path, &names, 8, &error);
+    std::filesystem::remove(path);
+
+    CHECK(leaves.size() == 2);
+    const ra2yr::vfs::MixLeaf* nested = nullptr;
+    const ra2yr::vfs::MixLeaf* direct = nullptr;
+    for (const auto& l : leaves) {
+        if (l.name == "leaf.bin") nested = &l;
+        if (l.name == "top.txt") direct = &l;
+    }
+    CHECK(nested != nullptr);
+    CHECK(direct != nullptr);
+    if (nested != nullptr) {
+        CHECK(nested->chain.size() == 2);
+        CHECK(nested->bytes() == leaf);
+    }
+    if (direct != nullptr) {
+        CHECK(direct->chain.size() == 1);
+        CHECK(direct->bytes() == top);
+    }
+}
+
+void test_old_format_roundtrip() {    const std::vector<std::uint8_t> data_a = {'h', 'e', 'l', 'l', 'o'};
     const std::vector<std::uint8_t> data_b = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
     const auto archive_bytes = make_old_mix({{"a.txt", data_a}, {"b.bin", data_b}});
 
@@ -137,6 +179,7 @@ void test_old_format_roundtrip() {
 int main() {
     test_blowfish_vectors();
     test_filename_hash();
+    test_nested_recursion();
     test_old_format_roundtrip();
 
     if (g_failures != 0) {

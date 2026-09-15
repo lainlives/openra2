@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -86,5 +87,34 @@ private:
     std::uint64_t body_offset_ = 0;
     std::vector<MixEntry> entries_;
 };
+
+// True if a name has a .mix extension (case-insensitive).
+bool is_mix_filename(std::string_view name);
+
+// A non-archive file reachable through a chain of nested archives. `read`
+// keeps the owning archive alive, so a leaf stays valid for as long as it is
+// held.
+struct MixLeaf {
+    std::string name;
+    std::uint32_t id = 0;
+    std::uint32_t size = 0;
+    std::vector<std::string> chain;  // top-level archive name first
+    std::function<std::vector<std::uint8_t>()> read;
+
+    std::vector<std::uint8_t> bytes() const { return read ? read() : std::vector<std::uint8_t>{}; }
+};
+
+// Recursively expand every nested archive under `path` and return its leaves.
+std::vector<MixLeaf> enumerate_leaves(const std::filesystem::path& path,
+                                      const NameDatabase* names = nullptr,
+                                      int max_depth = 8,
+                                      std::string* error = nullptr);
+
+// Visit every archive in the tree, depth-first; depth 0 is the root archive.
+void for_each_archive(const std::filesystem::path& path,
+                      const std::function<void(const MixArchive&, int depth)>& visitor,
+                      const NameDatabase* names = nullptr,
+                      int max_depth = 8,
+                      std::string* error = nullptr);
 
 }  // namespace ra2yr::vfs
