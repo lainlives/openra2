@@ -1,1 +1,32 @@
-reference/*
+# Build output
+/build/
+/out/
+/cmake-build-*/
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dll
+*.exe
+*.pdb
+*.ilk
+*.exp
+
+# Local retail game data and reference material. Never commit these.
+/reference/
+
+# Python tooling
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*~
+
+# Generated
+compile_commands.json

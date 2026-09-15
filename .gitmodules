@@ -1,0 +1,9 @@
+[submodule "third-party/miniaudio"]
+	path = third-party/miniaudio
+	url = https://github.com/mackron/miniaudio
+[submodule "third-party/SDL"]
+	path = third-party/SDL
+	url = https://github.com/libsdl-org/SDL
+[submodule "third-party/bgfx.cmake"]
+	path = third-party/bgfx.cmake
+	url = https://github.com/bkaradzic/bgfx.cmake

@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -S . -B build -DRA2YR_BUILD_TESTS=ON
+
+      - name: Build
+        run: cmake --build build --config Debug --parallel
+
+      - name: Test
+        run: ctest --test-dir build -C Debug --output-on-failure
+
+  mix-tool:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install tooling dependencies
+        run: pip install blowfish
+
+      - name: MIX round-trip smoke test
+        run: |
+          mkdir -p /tmp/fixture/src
+          echo "hello world" > /tmp/fixture/src/a.txt
+          head -c 4096 /dev/urandom > /tmp/fixture/src/b.bin
+          python3 scripts/mixer.py create /tmp/fixture/test.mix /tmp/fixture/src
+          python3 scripts/mixer.py list /tmp/fixture/test.mix
+          python3 scripts/mixer.py extract -r -d /tmp/fixture/out /tmp/fixture/test.mix
+          diff -r /tmp/fixture/src /tmp/fixture/out --exclude="local mix database.dat"
