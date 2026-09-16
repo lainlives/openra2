@@ -8,6 +8,7 @@
 #include <iterator>
 #include <unordered_map>
 
+#include "formats/ini.h"
 #include "formats/tmp.h"
 #include "render/iso.h"
 
@@ -79,24 +80,79 @@ TerrainAtlas build_grid_terrain(const std::vector<std::uint8_t>& tile_rgba, int 
 }
 
 std::optional<TerrainAtlas> build_map_terrain(const formats::MapFile& map,
-                                              const formats::Theater& theater,
-                                              const std::filesystem::path& tiles_dir,
-                                              const formats::Palette& palette,
+                                              vfs::Vfs& vfs,
+                                              const std::string& palette_override,
                                               std::string* error) {
-    const char* suffix = formats::Theater::tile_suffix(map.theater());
-    if (suffix == nullptr) {
+    const formats::TheaterInfo* info = formats::theater_info(map.theater());
+    if (info == nullptr) {
         if (error != nullptr) {
             *error = "unknown theater: " + map.theater();
         }
         return std::nullopt;
     }
 
+    // Bring the theater tile mix, palettes, and localization mixes online, as
+    // the engine does during startup.
+    vfs.open_mix(std::string(info->art) + ".mix");
+    vfs.open_mix("localmd.mix");
+    vfs.open_mix("local.mix");
+    vfs.open_mix("cachemd.mix");
+    vfs.open_mix("cache.mix");
+
+    const auto read_asset = [&vfs](const std::string& name) -> std::vector<std::uint8_t> {
+        if (auto bytes = vfs.read(name)) {
+            return std::move(*bytes);
+        }
+        return {};
+    };
+
+    // Control INI: Yuri's Revenge uses the MD variant, Red Alert 2 the base.
+    const std::string control(info->control);
+    std::vector<std::uint8_t> ini_bytes = read_asset(lowercase(control) + "md.ini");
+    if (ini_bytes.empty()) {
+        ini_bytes = read_asset(lowercase(control) + ".ini");
+    }
+    if (ini_bytes.empty()) {
+        if (error != nullptr) {
+            *error = "cannot find theater control file " + control + "md.ini";
+        }
+        return std::nullopt;
+    }
+    const std::string ini_text(ini_bytes.begin(), ini_bytes.end());
+    const formats::Theater theater =
+        formats::Theater::from_ini(formats::IniFile::parse(ini_text));
+
+    formats::Palette palette;
+    bool have_palette = false;
+    if (!palette_override.empty()) {
+        const std::vector<std::uint8_t> bytes = read_file(palette_override);
+        std::string palette_error;
+        if (auto parsed = formats::Palette::from_bytes(bytes, &palette_error)) {
+            palette = *parsed;
+            have_palette = true;
+        } else if (error != nullptr) {
+            *error = "palette override: " + palette_error;
+        }
+    }
+    if (!have_palette) {
+        const std::vector<std::uint8_t> bytes =
+            read_asset(lowercase(std::string(info->palette)) + ".pal");
+        std::string palette_error;
+        if (auto parsed = formats::Palette::from_bytes(bytes, &palette_error)) {
+            palette = *parsed;
+            have_palette = true;
+        } else if (error != nullptr) {
+            *error = "cannot find theater palette " + std::string(info->palette) + ".pal";
+        }
+    }
+    if (!have_palette) {
+        return std::nullopt;
+    }
+
     TerrainAtlas atlas;
-    // Cache: resolved tile id -> atlas slot.
     std::unordered_map<std::uint16_t, int> slot_for_tile;
     struct Slot {
         std::vector<std::uint8_t> rgba;
-        int sub_tile = 0;
     };
     std::vector<Slot> slots;
     int tile_w = 0;
@@ -115,8 +171,8 @@ std::optional<TerrainAtlas> build_map_terrain(const formats::MapFile& map,
         formats::TmpFile tmp;
         bool loaded = false;
         int sub_tile = 0;
-        for (const std::string& name : candidate_names(base, index, suffix)) {
-            const std::vector<std::uint8_t> bytes = read_file(tiles_dir / name);
+        for (const std::string& name : candidate_names(base, index, info->extension)) {
+            const std::vector<std::uint8_t> bytes = read_asset(name);
             if (bytes.empty()) {
                 continue;
             }
@@ -127,8 +183,6 @@ std::optional<TerrainAtlas> build_map_terrain(const formats::MapFile& map,
             }
             tmp = std::move(*parsed);
             loaded = true;
-            // The map's sub-tile selects a cell within a multi-cell TMP; out
-            // of range values fall back to the first cell.
             sub_tile = cell.sub_tile < tmp.tile_count() ? cell.sub_tile : 0;
             break;
         }
@@ -143,14 +197,13 @@ std::optional<TerrainAtlas> build_map_terrain(const formats::MapFile& map,
         }
         Slot slot;
         slot.rgba = tmp.to_rgba(tmp.tile(static_cast<std::size_t>(sub_tile)), palette);
-        slot.sub_tile = sub_tile;
         slot_for_tile[cell.tile] = static_cast<int>(slots.size());
         slots.push_back(std::move(slot));
     }
 
     if (slots.empty() || tile_w == 0 || tile_h == 0) {
         if (error != nullptr) {
-            *error = "no theater tiles could be loaded from " + tiles_dir.string();
+            *error = "no theater tiles could be resolved for " + map.theater();
         }
         return std::nullopt;
     }
@@ -205,7 +258,6 @@ std::optional<TerrainAtlas> build_map_terrain(const formats::MapFile& map,
         instance.v0 = static_cast<float>(slot_y) / atlas.atlas_height;
         instance.u1 = static_cast<float>(slot_x + tile_w) / atlas.atlas_width;
         instance.v1 = static_cast<float>(slot_y + tile_h) / atlas.atlas_height;
-        // Painter order: depth first by diagonal, then by height.
         instance.depth = (cell.x + cell.y) * 16 + cell.z;
         atlas.tiles.push_back(instance);
 
@@ -226,7 +278,7 @@ std::optional<TerrainAtlas> build_map_terrain(const formats::MapFile& map,
     }
 
     if (missing > 0) {
-        std::fprintf(stderr, "[warn] %d tiles could not be loaded\n", missing);
+        std::fprintf(stderr, "[warn] %d tiles could not be resolved\n", missing);
     }
     return atlas;
 }

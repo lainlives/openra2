@@ -2,8 +2,43 @@
 
 #include <cctype>
 #include <cstdio>
+#include <cstring>
 
 namespace ra2yr::formats {
+namespace {
+
+// Order and names match the YR engine's Theater array (see YRpp Theater.h:
+// ID / ControlFileName / ArtFileName / PaletteFileName / Extension).
+constexpr TheaterInfo kTheaters[] = {
+    {"TEMPERATE", "temperat", "isotemp", "isotem", "tem"},
+    {"SNOW", "snow", "isosnow", "isosno", "sno"},
+    {"URBAN", "urban", "isourb", "isourb", "urb"},
+    {"DESERT", "desert", "isodes", "isodes", "des"},
+    {"LUNAR", "lunar", "isolun", "isolun", "lun"},
+    {"NEWURBAN", "urbann", "isoubn", "isoubn", "ubn"},
+};
+
+}  // namespace
+
+const TheaterInfo* theater_info(std::string_view theater_name) {
+    for (const TheaterInfo& info : kTheaters) {
+        if (theater_name.size() != std::strlen(info.id)) {
+            continue;
+        }
+        bool match = true;
+        for (std::size_t i = 0; i < theater_name.size(); ++i) {
+            if (std::toupper(static_cast<unsigned char>(theater_name[i])) !=
+                info.id[i]) {
+                match = false;
+                break;
+            }
+        }
+        if (match) {
+            return &info;
+        }
+    }
+    return nullptr;
+}
 
 Theater Theater::from_ini(const IniFile& ini) {
     Theater theater;
@@ -45,17 +80,8 @@ bool Theater::resolve(std::uint16_t tile_id, std::string* file_base,
 }
 
 const char* Theater::tile_suffix(std::string_view theater_name) {
-    std::string upper(theater_name);
-    for (char& c : upper) {
-        c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
-    }
-    if (upper == "TEMPERATE") return "tem";
-    if (upper == "SNOW") return "sno";
-    if (upper == "URBAN") return "urb";
-    if (upper == "DESERT") return "des";
-    if (upper == "LUNAR") return "lun";
-    if (upper == "NEWURBAN") return "ubn";
-    return nullptr;
+    const TheaterInfo* info = theater_info(theater_name);
+    return info != nullptr ? info->extension : nullptr;
 }
 
 }  // namespace ra2yr::formats

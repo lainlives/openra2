@@ -388,6 +388,14 @@ Reverse-chronological; evidence belongs in the owning docs.
   `maps/Transylv.yro` (NEWURBAN, 70x70, 9,730 cells, 8,714 drawn). The archive
   reader now also rejects entries that lie outside the file, so non-archive
   input can never be misread as a huge MIX.
+- Install VFS: `vfs::Vfs` resolves assets by Westwood hash the way the game
+  does - loose files first, then nested MIXes opened on demand by name
+  (`isourb.mix`, `localmd.mix`, ...), then the top-level archives in priority
+  order (expansion/mod archives before ra2md before ra2). No filename database
+  is needed at runtime. The theater table (control INI, tile MIX, palette,
+  extension) matches the YR engine's `Theater` array. `--map` now needs only
+  `--install <retail dir>`; verified on the same three maps with identical
+  tile counts, so the manual theater/tiles/palette paths are gone.
 
 ---
 

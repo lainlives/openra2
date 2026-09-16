@@ -23,6 +23,7 @@
 #include "render/iso.h"
 #include "render/terrain.h"
 #include "vfs/mix.h"
+#include "vfs/vfs.h"
 
 #if defined(RA2YR_RENDER_BGFX)
 #include "render/bgfx_renderer.h"
@@ -46,9 +47,8 @@ void print_usage() {
                  "  --terrain TMP PAL     render an isometric grid of a TMP tile\n"
                  "  --grid COLSxROWS      grid size for --terrain (default 16x16)\n"
                  "  --map FILE            render a .map/.mpr/.yrm map\n"
-                 "  --theater-ini FILE    theater tile control file for --map\n"
-                 "  --tiles-dir DIR       directory of theater TMP tiles for --map\n"
-                 "  --palette FILE        theater palette for --map\n"
+                 "  --install DIR         retail install directory for asset lookup\n"
+                 "  --palette FILE        optional palette override for --map\n"
                  "  --screenshot FILE.ppm capture a frame and exit\n"
                  "  --help                show this message\n",
                  ra2yr::kVersionString);
@@ -300,19 +300,14 @@ int run_terrain(const std::string& tmp_path, const std::string& pal_path, int co
 #endif
 }
 
-int run_map(const std::string& map_path, const std::string& theater_path,
-            const std::string& tiles_dir, const std::string& pal_path,
-            const std::string& screenshot) {
+int run_map(const std::string& map_path, const std::string& install_dir,
+            const std::string& palette_override, const std::string& screenshot) {
     std::ifstream map_in(map_path, std::ios::binary);
-    std::ifstream theater_in(theater_path);
-    std::ifstream pal_in(pal_path, std::ios::binary);
-    if (!map_in || !theater_in || !pal_in) {
-        ra2yr::log_error("cannot read the map, theater ini, or palette");
+    if (!map_in) {
+        ra2yr::log_error("cannot read ", map_path);
         return 1;
     }
     std::vector<std::uint8_t> map_bytes((std::istreambuf_iterator<char>(map_in)), {});
-    std::string theater_text((std::istreambuf_iterator<char>(theater_in)), {});
-    std::vector<std::uint8_t> pal_bytes((std::istreambuf_iterator<char>(pal_in)), {});
 
     // .mmx/.yro are MIX archives holding a .map and a .pkt. Retail archives
     // carry no names, so pick the member that contains the map data.
@@ -333,15 +328,15 @@ int run_map(const std::string& map_path, const std::string& theater_path,
         ra2yr::log_error("map: ", error);
         return 1;
     }
-    auto palette = ra2yr::formats::Palette::from_bytes(pal_bytes, &error);
-    if (!palette) {
-        ra2yr::log_error("palette: ", error);
+
+    auto vfs = ra2yr::vfs::Vfs::open_install(install_dir, &error);
+    if (!vfs) {
+        ra2yr::log_error("install: ", error);
         return 1;
     }
-    const auto theater =
-        ra2yr::formats::Theater::from_ini(ra2yr::formats::IniFile::parse(theater_text));
+
     auto atlas =
-        ra2yr::render::build_map_terrain(*map, theater, tiles_dir, *palette, &error);
+        ra2yr::render::build_map_terrain(*map, *vfs, palette_override, &error);
     if (!atlas) {
         ra2yr::log_error("terrain: ", error);
         return 1;
@@ -367,8 +362,7 @@ int main(int argc, char** argv) {
     std::string tmp_file;
     std::string pal_file;
     std::string map_file;
-    std::string theater_file;
-    std::string tiles_dir;
+    std::string install_dir;
     std::string screenshot;
     int grid_cols = 16;
     int grid_rows = 16;
@@ -471,20 +465,12 @@ int main(int argc, char** argv) {
             mode = Mode::Map;
             continue;
         }
-        if (std::strcmp(argv[i], "--theater-ini") == 0) {
+        if (std::strcmp(argv[i], "--install") == 0) {
             if (i + 1 >= argc) {
-                std::fprintf(stderr, "--theater-ini requires a file\n");
+                std::fprintf(stderr, "--install requires a directory\n");
                 return 2;
             }
-            theater_file = argv[++i];
-            continue;
-        }
-        if (std::strcmp(argv[i], "--tiles-dir") == 0) {
-            if (i + 1 >= argc) {
-                std::fprintf(stderr, "--tiles-dir requires a directory\n");
-                return 2;
-            }
-            tiles_dir = argv[++i];
+            install_dir = argv[++i];
             continue;
         }
         if (std::strcmp(argv[i], "--palette") == 0) {
@@ -540,11 +526,11 @@ int main(int argc, char** argv) {
     }
 
     if (mode == Mode::Map) {
-        if (theater_file.empty() || tiles_dir.empty() || pal_file.empty()) {
-            ra2yr::log_error("--map needs --theater-ini, --tiles-dir, and --palette");
+        if (install_dir.empty()) {
+            ra2yr::log_error("--map needs --install DIR");
             return 2;
         }
-        return run_map(map_file, theater_file, tiles_dir, pal_file, screenshot);
+        return run_map(map_file, install_dir, pal_file, screenshot);
     }
     if (mode == Mode::Terrain) {
         return run_terrain(tmp_file, pal_file, grid_cols, grid_rows, screenshot);

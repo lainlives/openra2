@@ -10,6 +10,7 @@
 
 #include "../src/vfs/blowfish.h"
 #include "../src/vfs/mix.h"
+#include "../src/vfs/vfs.h"
 
 namespace {
 
@@ -199,6 +200,57 @@ void test_extract_member() {
     CHECK(!none.has_value());
 }
 
+void test_vfs() {
+    const auto dir = std::filesystem::temp_directory_path() / "ra2yr_test_vfs";
+    std::filesystem::remove_all(dir);
+    std::filesystem::create_directories(dir);
+
+    const auto bytes_of = [](const std::string& text) {
+        return std::vector<std::uint8_t>(text.begin(), text.end());
+    };
+    const auto as_text = [](const std::vector<std::uint8_t>& data) {
+        return std::string(data.begin(), data.end());
+    };
+
+    const auto inner = make_old_mix({{"nested.txt", bytes_of("nested")}});
+    const auto base = make_old_mix({{"onlybase.txt", bytes_of("base")},
+                                    {"inner.mix", inner}});
+    {
+        std::ofstream out(dir / "base.mix", std::ios::binary);
+        out.write(reinterpret_cast<const char*>(base.data()),
+                  static_cast<std::streamsize>(base.size()));
+    }
+    {
+        std::ofstream out(dir / "loose.txt", std::ios::binary);
+        const auto loose = bytes_of("loose");
+        out.write(reinterpret_cast<const char*>(loose.data()),
+                  static_cast<std::streamsize>(loose.size()));
+    }
+
+    std::string error;
+    auto vfs = ra2yr::vfs::Vfs::open_install(dir, &error);
+    CHECK(vfs.has_value());
+    if (!vfs) {
+        std::cerr << "vfs open failed: " << error << "\n";
+        std::filesystem::remove_all(dir);
+        return;
+    }
+
+    // Loose files win, and archive members are found by hash without names.
+    auto loose = vfs->read("loose.txt");
+    CHECK(loose.has_value() && as_text(*loose) == "loose");
+    auto member = vfs->read("onlybase.txt");
+    CHECK(member.has_value() && as_text(*member) == "base");
+    CHECK(!vfs->read("missing.txt").has_value());
+
+    // A nested MIX opens on demand and its members resolve.
+    CHECK(vfs->open_mix("inner.mix") != nullptr);
+    auto nested = vfs->read("nested.txt");
+    CHECK(nested.has_value() && as_text(*nested) == "nested");
+
+    std::filesystem::remove_all(dir);
+}
+
 }  // namespace
 
 int main() {
@@ -207,6 +259,7 @@ int main() {
     test_nested_recursion();
     test_old_format_roundtrip();
     test_extract_member();
+    test_vfs();
 
     if (g_failures != 0) {
         std::cerr << g_failures << " check(s) failed\n";

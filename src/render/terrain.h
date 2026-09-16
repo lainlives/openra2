@@ -14,6 +14,7 @@
 #include "formats/map.h"
 #include "formats/palette.h"
 #include "formats/theater.h"
+#include "vfs/vfs.h"
 
 namespace ra2yr::render {
 
@@ -46,12 +47,12 @@ struct TerrainAtlas {
 TerrainAtlas build_grid_terrain(const std::vector<std::uint8_t>& tile_rgba, int tile_width,
                                 int tile_height, int cols, int rows);
 
-// Build terrain from a parsed map and the matching theater. Tile TMPs are read
-// from `tiles_dir` by lowercase file name.
+// Build terrain from a parsed map, resolving the theater control file, tiles,
+// and palette through the install VFS. `palette_override` is an optional loose
+// palette path for debugging.
 std::optional<TerrainAtlas> build_map_terrain(const formats::MapFile& map,
-                                              const formats::Theater& theater,
-                                              const std::filesystem::path& tiles_dir,
-                                              const formats::Palette& palette,
+                                              vfs::Vfs& vfs,
+                                              const std::string& palette_override = {},
                                               std::string* error = nullptr);
 
 }  // namespace ra2yr::render

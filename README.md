@@ -55,13 +55,16 @@ To render an isometric terrain grid from retail assets:
     --grid 16x16 --screenshot terrain.ppm
 ```
 
-To render a real map (`.map`, RA2's `.mpr`, YR's `.yrm`):
+To render a real map (`.map`, RA2's `.mpr`, YR's `.yrm`), point the engine at
+the retail install and it resolves the theater control file, tiles, and palette
+through the same hash-based VFS the game uses:
 
 ```
-./build/gfx/src/ra2yr --map <map.mpr> \
-    --theater-ini <urbanmd.ini> --tiles-dir <theater-tiles-dir> \
-    --palette <urban.pal> --screenshot map.ppm
+./build/gfx/src/ra2yr --map <map.mpr> --install "<retail dir>" \
+    --screenshot map.ppm
 ```
+
+`--palette <file.pal>` overrides the theater palette for debugging.
 
 Drag with the left mouse button to pan and use the wheel to zoom; Escape
 closes the window. `.mmx` and `.yro` maps are MIX archives containing a `.map`

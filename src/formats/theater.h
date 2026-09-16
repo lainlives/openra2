@@ -23,6 +23,18 @@ struct TheaterTileSet {
     std::string file_name;
 };
 
+// Static per-theater names, matching the YR engine's Theater table: the tile
+// control INI, the isometric tile MIX, the palette, and the tile extension.
+struct TheaterInfo {
+    const char* id;
+    const char* control;   // e.g. "urban"   -> urbanmd.ini / urban.ini
+    const char* art;       // e.g. "isourb"  -> isourb.mix
+    const char* palette;   // e.g. "isourb"  -> isourb.pal
+    const char* extension; // e.g. "urb"
+};
+
+const TheaterInfo* theater_info(std::string_view theater_name);
+
 class Theater {
 public:
     static Theater from_ini(const IniFile& ini);
