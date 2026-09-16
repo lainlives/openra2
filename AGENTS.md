@@ -65,6 +65,13 @@ name database (one filename per line) to resolve them. Recursion into nested
 ./build/default/src/ra2yr --names reference/ra2-names.txt --mix-extract <archive.mix> <dir>
 ```
 
+With the SDL3/bgfx build, render an isometric terrain grid and capture a
+screenshot (PPM):
+
+```
+./build/gfx/src/ra2yr --terrain <tile.tem> <theater.pal> --grid 16x16 --screenshot out.ppm
+```
+
 ## Layout
 
 - `src/core/` - platform-free kernel: logging, version, utilities.

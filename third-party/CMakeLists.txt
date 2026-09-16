@@ -41,7 +41,12 @@ if(RA2YR_ENABLE_BGFX)
             "bgfx.cmake is not initialized. Run:\n"
             "  git submodule update --init --recursive")
     endif()
-    set(BGFX_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+    # shaderc embeds the engine's shaders as generated headers at build time.
+    set(BGFX_BUILD_TOOLS ON CACHE BOOL "" FORCE)
+    set(BGFX_BUILD_TOOLS_BIN2C ON CACHE BOOL "" FORCE)
+    set(BGFX_BUILD_TOOLS_SHADER ON CACHE BOOL "" FORCE)
+    set(BGFX_BUILD_TOOLS_GEOMETRY OFF CACHE BOOL "" FORCE)
+    set(BGFX_BUILD_TOOLS_TEXTURE OFF CACHE BOOL "" FORCE)
     set(BGFX_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
     set(BGFX_BUILD_TESTS OFF CACHE BOOL "" FORCE)
     set(BGFX_INSTALL OFF CACHE BOOL "" FORCE)

@@ -362,6 +362,14 @@ Reverse-chronological; evidence belongs in the owning docs.
   height map at `cell + z_offset`, plus optional extra graphics. Verified
   against retail `clat01.tem` + `temperat.pal`: C++ output matches an
   independent Python decode byte-for-byte (hash and pixels). Tests added.
+- Shader pipeline and terrain draw: bgfx's `shaderc` is built and the
+  `vs_tile`/`fs_tile` shaders are embedded as generated headers by the
+  `bgfx_compile_shaders` helper. `BgfxRenderer` uploads the decoded tile as an
+  RGBA8 texture and draws the whole isometric grid in one indexed draw call
+  with an orthographic projection and alpha blending; a screenshot callback
+  writes PPM. Verified on Linux/Vulkan: a 16x16 grid paints exactly 230,400
+  pixels, equal to 256 tiles x 900 pixels and to the full 960x480 diamond area,
+  with the clear colour in the corners.
 
 ---
 

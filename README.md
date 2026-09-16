@@ -48,6 +48,13 @@ This opens an SDL3 window and initializes bgfx (renderer auto-selected).
 Debug builds log verbosely, including bgfx's own diagnostics; pass
 `--log-level info` to quiet them.
 
+To render an isometric terrain grid from retail assets:
+
+```
+./build/gfx/src/ra2yr --terrain <tile.tem> <theater.pal> \
+    --grid 16x16 --screenshot terrain.ppm
+```
+
 On Windows, configure manually if you prefer:
 
 ```

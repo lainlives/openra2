@@ -3,6 +3,8 @@
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <memory>
 #include <string>
 #include <unordered_set>
@@ -10,6 +12,8 @@
 
 #include "core/log.h"
 #include "core/version.h"
+#include "formats/palette.h"
+#include "formats/tmp.h"
 #include "platform/platform.h"
 #include "vfs/mix.h"
 
@@ -32,6 +36,9 @@ void print_usage() {
                  "  --mix-list FILE       list the direct entries of a MIX archive\n"
                  "  --mix-tree FILE       list the archive tree, recursing into .mix\n"
                  "  --mix-extract FILE DIR  recursively extract every file\n"
+                 "  --terrain TMP PAL     render an isometric grid of a TMP tile\n"
+                 "  --grid COLSxROWS      grid size for --terrain (default 16x16)\n"
+                 "  --screenshot FILE.ppm capture a frame and exit\n"
                  "  --help                show this message\n",
                  ra2yr::kVersionString);
 }
@@ -123,6 +130,98 @@ int extract_mix(const std::string& path, const std::string& dir,
     return 0;
 }
 
+int run_terrain(const std::string& tmp_path, const std::string& pal_path, int cols, int rows,
+                const std::string& screenshot) {
+    std::ifstream tmp_in(tmp_path, std::ios::binary);
+    std::ifstream pal_in(pal_path, std::ios::binary);
+    if (!tmp_in || !pal_in) {
+        ra2yr::log_error("cannot read ", tmp_path, " or ", pal_path);
+        return 1;
+    }
+    std::vector<std::uint8_t> tmp_bytes((std::istreambuf_iterator<char>(tmp_in)), {});
+    std::vector<std::uint8_t> pal_bytes((std::istreambuf_iterator<char>(pal_in)), {});
+
+    std::string error;
+    auto tmp = ra2yr::formats::TmpFile::from_bytes(tmp_bytes, &error);
+    if (!tmp) {
+        ra2yr::log_error("TMP: ", error);
+        return 1;
+    }
+    auto palette = ra2yr::formats::Palette::from_bytes(pal_bytes, &error);
+    if (!palette) {
+        ra2yr::log_error("palette: ", error);
+        return 1;
+    }
+    if (tmp->tile_count() == 0) {
+        ra2yr::log_error("TMP has no tiles");
+        return 1;
+    }
+
+#if defined(RA2YR_PLATFORM_SDL) && defined(RA2YR_RENDER_BGFX)
+    auto platform = ra2yr::platform::make_sdl_platform();
+    if (!platform) {
+        ra2yr::log_error("SDL3 unavailable");
+        return 1;
+    }
+    ra2yr::platform::WindowDesc desc;
+    desc.width = 1280;
+    desc.height = 800;
+    desc.title = "ra2yr terrain";
+    desc.visible = true;
+    auto window = platform->create_window(desc);
+    if (!window) {
+        ra2yr::log_error("failed to create a window");
+        return 1;
+    }
+
+    ra2yr::render::BgfxRenderer renderer;
+    if (!renderer.initialize(window->native_window(), window->width(), window->height(),
+                             &error)) {
+        ra2yr::log_error(error);
+        return 1;
+    }
+    const auto& tile = tmp->tile(0);
+    const auto rgba = tmp->to_rgba(tile, *palette);
+    if (!renderer.set_tile_texture(rgba, static_cast<int>(tmp->tile_width()),
+                                   static_cast<int>(tmp->tile_height()), &error)) {
+        ra2yr::log_error(error);
+        renderer.shutdown();
+        return 1;
+    }
+    renderer.set_grid(cols, rows, static_cast<int>(tmp->tile_width()),
+                      static_cast<int>(tmp->tile_height()));
+    ra2yr::log_info("terrain ", tmp_path, ": tile ", tmp->tile_width(), "x",
+                    tmp->tile_height(), ", grid ", cols, "x", rows, ", renderer ",
+                    renderer.backend());
+
+    int frames = 0;
+    const bool want_shot = !screenshot.empty();
+    while (!window->should_close()) {
+        window->poll();
+        if (want_shot && frames == 3) {
+            renderer.request_screenshot(screenshot);
+        }
+        renderer.render();
+        ++frames;
+        if (want_shot && renderer.screenshot_ready()) {
+            break;
+        }
+        if (want_shot && frames > 240) {
+            ra2yr::log_warn("screenshot timed out");
+            break;
+        }
+    }
+    renderer.shutdown();
+    return 0;
+#else
+    static_cast<void>(cols);
+    static_cast<void>(rows);
+    static_cast<void>(screenshot);
+    ra2yr::log_error("terrain rendering requires RA2YR_ENABLE_SDL3 and RA2YR_ENABLE_BGFX");
+    return 1;
+#endif
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -130,7 +229,12 @@ int main(int argc, char** argv) {
     std::string names_file;
     std::string mix_file;
     std::string extract_dir;
-    enum class Mode { Game, List, Tree, Extract } mode = Mode::Game;
+    std::string tmp_file;
+    std::string pal_file;
+    std::string screenshot;
+    int grid_cols = 16;
+    int grid_rows = 16;
+    enum class Mode { Game, List, Tree, Extract, Terrain } mode = Mode::Game;
 
     // Development builds are verbose by default; release builds stay quiet
     // unless asked otherwise.
@@ -210,6 +314,37 @@ int main(int argc, char** argv) {
             mode = Mode::Extract;
             continue;
         }
+        if (std::strcmp(argv[i], "--terrain") == 0) {
+            if (i + 2 >= argc) {
+                std::fprintf(stderr, "--terrain requires a TMP file and a palette\n");
+                return 2;
+            }
+            tmp_file = argv[++i];
+            pal_file = argv[++i];
+            mode = Mode::Terrain;
+            continue;
+        }
+        if (std::strcmp(argv[i], "--grid") == 0) {
+            if (i + 1 >= argc) {
+                std::fprintf(stderr, "--grid requires COLSxROWS\n");
+                return 2;
+            }
+            const std::string value = argv[++i];
+            if (std::sscanf(value.c_str(), "%dx%d", &grid_cols, &grid_rows) != 2 ||
+                grid_cols <= 0 || grid_rows <= 0) {
+                std::fprintf(stderr, "invalid grid: %s\n", value.c_str());
+                return 2;
+            }
+            continue;
+        }
+        if (std::strcmp(argv[i], "--screenshot") == 0) {
+            if (i + 1 >= argc) {
+                std::fprintf(stderr, "--screenshot requires a path\n");
+                return 2;
+            }
+            screenshot = argv[++i];
+            continue;
+        }
         if (std::strcmp(argv[i], "--help") == 0 || std::strcmp(argv[i], "-h") == 0) {
             print_usage();
             return 0;
@@ -218,6 +353,8 @@ int main(int argc, char** argv) {
         print_usage();
         return 2;
     }
+
+    ra2yr::set_log_level(log_level);
 
     ra2yr::vfs::NameDatabase names;
     const ra2yr::vfs::NameDatabase* names_ptr = nullptr;
@@ -231,6 +368,9 @@ int main(int argc, char** argv) {
         names_ptr = &names;
     }
 
+    if (mode == Mode::Terrain) {
+        return run_terrain(tmp_file, pal_file, grid_cols, grid_rows, screenshot);
+    }
     if (mode == Mode::List) {
         return list_mix(mix_file, names_ptr);
     }

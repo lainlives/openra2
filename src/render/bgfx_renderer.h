@@ -1,4 +1,4 @@
-// bgfx renderer bring-up.
+// bgfx renderer: device bring-up, terrain tiles, and frame presentation.
 //
 // Compiled only when RA2YR_ENABLE_BGFX is on. This is the only translation
 // unit that includes bgfx, keeping its headers away from the rest of the
@@ -8,7 +8,10 @@
 
 #pragma once
 
+#include <cstdint>
+#include <memory>
 #include <string>
+#include <vector>
 
 #include "platform/platform.h"
 
@@ -16,7 +19,7 @@ namespace ra2yr::render {
 
 class BgfxRenderer {
 public:
-    BgfxRenderer() = default;
+    BgfxRenderer();
     ~BgfxRenderer();
 
     BgfxRenderer(const BgfxRenderer&) = delete;
@@ -33,15 +36,21 @@ public:
     // Clear the frame and present it. Call once per frame.
     void render();
 
-    bool valid() const { return initialized_; }
-    const char* backend() const { return backend_.c_str(); }
+    bool valid() const;
+    std::string backend() const;
+
+    // Terrain. `rgba` is a tightly packed RGBA8 tile image.
+    bool set_tile_texture(const std::vector<std::uint8_t>& rgba, int width, int height,
+                          std::string* error = nullptr);
+    void set_grid(int cols, int rows, int tile_width, int tile_height);
+
+    // Queue a screenshot (PPM) for the end of the next frame.
+    void request_screenshot(const std::string& path);
+    bool screenshot_ready() const;
 
 private:
-    bool initialized_ = false;
-    platform::NativeWindow window_;
-    int width_ = 0;
-    int height_ = 0;
-    std::string backend_;
+    struct Impl;
+    std::unique_ptr<Impl> impl_;
 };
 
 }  // namespace ra2yr::render
