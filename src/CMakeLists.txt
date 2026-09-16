@@ -3,7 +3,9 @@
 
 file(GLOB RA2YR_CORE_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/core/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/formats/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/platform/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/render/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/vfs/*.cpp"
 )
 
@@ -11,6 +13,7 @@ file(GLOB RA2YR_CORE_SOURCES CONFIGURE_DEPENDS
 # default build never needs their headers.
 list(REMOVE_ITEM RA2YR_CORE_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/platform/sdl_backend.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/render/bgfx_renderer.cpp"
 )
 
 add_library(ra2yr_core STATIC ${RA2YR_CORE_SOURCES})

@@ -356,6 +356,12 @@ Reverse-chronological; evidence belongs in the owning docs.
   debug builds default to `Debug` level (verbose, including bgfx), release
   builds to `Info`, with `--verbose` / `--log-level` overrides. CI gained a
   `gfx-build` job that configures and builds the SDL3/bgfx configuration.
+- Isometric asset layer (M3 start): palette and TMP decoders
+  (`src/formats/`) plus isometric projection and draw ordering
+  (`src/render/iso`). TMP reads the raw "isometric to square" cell image and
+  height map at `cell + z_offset`, plus optional extra graphics. Verified
+  against retail `clat01.tem` + `temperat.pal`: C++ output matches an
+  independent Python decode byte-for-byte (hash and pixels). Tests added.
 
 ---
 
