@@ -25,6 +25,8 @@ public:
     }
 
     void poll() override {
+        input_.wheel = 0.0f;
+        input_.escape = false;
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_EVENT_QUIT) {
@@ -36,6 +38,20 @@ public:
                        event.window.windowID == SDL_GetWindowID(window_)) {
                 width_ = event.window.data1;
                 height_ = event.window.data2;
+            } else if (event.type == SDL_EVENT_MOUSE_MOTION) {
+                input_.mouse_x = event.motion.x;
+                input_.mouse_y = event.motion.y;
+            } else if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN ||
+                       event.type == SDL_EVENT_MOUSE_BUTTON_UP) {
+                const bool down = event.type == SDL_EVENT_MOUSE_BUTTON_DOWN;
+                if (event.button.button == SDL_BUTTON_LEFT) input_.left = down;
+                if (event.button.button == SDL_BUTTON_RIGHT) input_.right = down;
+                if (event.button.button == SDL_BUTTON_MIDDLE) input_.middle = down;
+            } else if (event.type == SDL_EVENT_MOUSE_WHEEL) {
+                input_.wheel += event.wheel.y;
+            } else if (event.type == SDL_EVENT_KEY_DOWN &&
+                       event.key.key == SDLK_ESCAPE) {
+                input_.escape = true;
             }
         }
     }
@@ -43,6 +59,7 @@ public:
     bool should_close() const override { return closed_; }
     int width() const override { return width_; }
     int height() const override { return height_; }
+    const InputState& input() const override { return input_; }
 
     NativeWindow native_window() const override {
         NativeWindow result;
@@ -73,6 +90,7 @@ private:
     bool closed_ = false;
     int width_ = 0;
     int height_ = 0;
+    InputState input_;
 };
 
 class SdlPlatform final : public Platform {

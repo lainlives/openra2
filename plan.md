@@ -370,6 +370,18 @@ Reverse-chronological; evidence belongs in the owning docs.
   writes PPM. Verified on Linux/Vulkan: a 16x16 grid paints exactly 230,400
   pixels, equal to 256 tiles x 900 pixels and to the full 960x480 diamond area,
   with the clear colour in the corners.
+- Camera and Z: left-drag panning and wheel zoom drive a camera uniform;
+  tiles carry a painter-order key so height (Z) and diagonal depth sort
+  correctly, and higher cells are offset upward by half a tile per level.
+- Map rendering (M3/M4 start): `src/formats/` gained a minimal INI reader,
+  base64, an LZO1X decompressor ported from OpenTS, the map reader
+  (`.map`/`.mpr`/`.yrm`: IsoMapPack5 -> base64 -> LZO1X blocks -> 11-byte
+  cells), and the theater tile-set reader. `src/render/terrain` packs the
+  map's distinct tiles into one texture atlas and builds the instance list.
+  Verified on Linux/Vulkan against `maps01/all01t.map` (URBAN): 6,336 cells,
+  188 distinct tiles resolved 187/187 present on disk, 5,831 drawn, z up to 6,
+  screenshot captured. `.mmx`/`.yro` are MIX archives containing a `.map`;
+  their `.pkt` companion is redundant and not parsed.
 
 ---
 

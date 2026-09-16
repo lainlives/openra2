@@ -25,6 +25,18 @@ struct NativeWindow {
     bool wayland = false;
 };
 
+// Per-frame input snapshot. Mouse coordinates are in pixels; `wheel` is the
+// accumulated wheel delta for the frame.
+struct InputState {
+    float mouse_x = 0.0f;
+    float mouse_y = 0.0f;
+    float wheel = 0.0f;
+    bool left = false;
+    bool right = false;
+    bool middle = false;
+    bool escape = false;
+};
+
 class Window {
 public:
     virtual ~Window() = default;
@@ -35,6 +47,10 @@ public:
     virtual int width() const = 0;
     virtual int height() const = 0;
     virtual NativeWindow native_window() const { return {}; }
+    virtual const InputState& input() const {
+        static const InputState empty;
+        return empty;
+    }
 };
 
 class Platform {

@@ -4,9 +4,14 @@
 #include <string>
 #include <vector>
 
+#include "../src/formats/base64.h"
+#include "../src/formats/ini.h"
+#include "../src/formats/map.h"
 #include "../src/formats/palette.h"
+#include "../src/formats/theater.h"
 #include "../src/formats/tmp.h"
 #include "../src/render/iso.h"
+#include "../src/render/terrain.h"
 
 namespace {
 
@@ -173,12 +178,91 @@ void test_tmp_roundtrip() {
     }
 }
 
+void test_base64() {
+    const auto hello = ra2yr::formats::base64_decode("aGVsbG8=");
+    CHECK(std::string(hello.begin(), hello.end()) == "hello");
+    CHECK(ra2yr::formats::base64_decode("").empty());
+}
+
+void test_ini() {
+    const char* text =
+        "; comment\n[Map]\nTheater=URBAN\nSize=0,0,50,64\n[IsoMapPack5]\n1=aa\n2=bb\n";
+    auto ini = ra2yr::formats::IniFile::parse(text);
+    const std::string* theater = ini.get("map", "theater");
+    CHECK(theater != nullptr && *theater == "URBAN");
+    CHECK(ini.get_int("map", "size", -1) == 0);
+    const auto* pack = ini.section("isomappack5");
+    CHECK(pack != nullptr && pack->size() == 2);
+    if (pack != nullptr && pack->size() == 2) {
+        CHECK((*pack)[0].first == "1" && (*pack)[0].second == "aa");
+        CHECK((*pack)[1].second == "bb");
+    }
+}
+
+void test_theater() {
+    const char* text =
+        "[TileSet0000]\nFileName = Clear\nTilesInSet = 2\n"
+        "[TileSet0001]\nFileName = blank\nTilesInSet = 0\n"
+        "[TileSet0002]\nFileName = Rock\nTilesInSet = 3\n";
+    auto theater =
+        ra2yr::formats::Theater::from_ini(ra2yr::formats::IniFile::parse(text));
+    CHECK(theater.sets().size() == 3);
+
+    std::string base;
+    int index = -1;
+    CHECK(theater.resolve(0, &base, &index) && base == "Clear" && index == 0);
+    CHECK(theater.resolve(1, &base, &index) && base == "Clear" && index == 1);
+    CHECK(theater.resolve(2, &base, &index) && base == "Rock" && index == 0);
+    CHECK(theater.resolve(4, &base, &index) && base == "Rock" && index == 2);
+    CHECK(!theater.resolve(5, &base, &index));
+
+    CHECK(std::string(ra2yr::formats::Theater::tile_suffix("URBAN")) == "urb");
+    CHECK(ra2yr::formats::Theater::tile_suffix("NOPE") == nullptr);
+}
+
+void test_map_entries() {
+    std::vector<std::uint8_t> records(22, 0);
+    const auto put16 = [&records](std::size_t offset, std::uint16_t value) {
+        records[offset] = static_cast<std::uint8_t>(value & 0xFF);
+        records[offset + 1] = static_cast<std::uint8_t>(value >> 8);
+    };
+    put16(0, 1);
+    put16(2, 2);
+    put16(4, 3);
+    records[8] = 4;
+    records[9] = 5;
+    put16(11, 7);
+    put16(13, 8);
+    put16(15, 9);
+    records[19] = 1;
+
+    auto cells =
+        ra2yr::formats::MapFile::parse_iso_entries(records.data(), records.size());
+    CHECK(cells.size() == 2);
+    if (cells.size() == 2) {
+        CHECK(cells[0].x == 1 && cells[0].y == 2 && cells[0].tile == 3);
+        CHECK(cells[0].sub_tile == 4 && cells[0].z == 5);
+        CHECK(cells[1].x == 7 && cells[1].y == 8 && cells[1].tile == 9);
+    }
+
+    // CELL_NONE-style negative coordinates are skipped.
+    put16(0, 0xFFFF);
+    put16(2, 0xFFFF);
+    auto filtered =
+        ra2yr::formats::MapFile::parse_iso_entries(records.data(), records.size());
+    CHECK(filtered.size() == 1);
+}
+
 }  // namespace
 
 int main() {
     test_palette();
     test_iso_projection();
     test_tmp_roundtrip();
+    test_base64();
+    test_ini();
+    test_theater();
+    test_map_entries();
 
     if (g_failures != 0) {
         std::cerr << g_failures << " check(s) failed\n";

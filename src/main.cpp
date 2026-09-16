@@ -1,4 +1,6 @@
+#include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -12,9 +14,14 @@
 
 #include "core/log.h"
 #include "core/version.h"
+#include "formats/ini.h"
+#include "formats/map.h"
 #include "formats/palette.h"
+#include "formats/theater.h"
 #include "formats/tmp.h"
 #include "platform/platform.h"
+#include "render/iso.h"
+#include "render/terrain.h"
 #include "vfs/mix.h"
 
 #if defined(RA2YR_RENDER_BGFX)
@@ -38,6 +45,10 @@ void print_usage() {
                  "  --mix-extract FILE DIR  recursively extract every file\n"
                  "  --terrain TMP PAL     render an isometric grid of a TMP tile\n"
                  "  --grid COLSxROWS      grid size for --terrain (default 16x16)\n"
+                 "  --map FILE            render a .map/.mpr/.yrm map\n"
+                 "  --theater-ini FILE    theater tile control file for --map\n"
+                 "  --tiles-dir DIR       directory of theater TMP tiles for --map\n"
+                 "  --palette FILE        theater palette for --map\n"
                  "  --screenshot FILE.ppm capture a frame and exit\n"
                  "  --help                show this message\n",
                  ra2yr::kVersionString);
@@ -130,6 +141,93 @@ int extract_mix(const std::string& path, const std::string& dir,
     return 0;
 }
 
+#if defined(RA2YR_PLATFORM_SDL) && defined(RA2YR_RENDER_BGFX)
+int run_viewer(const ra2yr::render::TerrainAtlas& atlas, const std::string& title,
+               const std::string& screenshot) {
+    auto platform = ra2yr::platform::make_sdl_platform();
+    if (!platform) {
+        ra2yr::log_error("SDL3 unavailable");
+        return 1;
+    }
+    ra2yr::platform::WindowDesc desc;
+    desc.width = 1280;
+    desc.height = 800;
+    desc.title = title;
+    desc.visible = true;
+    auto window = platform->create_window(desc);
+    if (!window) {
+        ra2yr::log_error("failed to create a window");
+        return 1;
+    }
+
+    std::string error;
+    ra2yr::render::BgfxRenderer renderer;
+    if (!renderer.initialize(window->native_window(), window->width(), window->height(),
+                             &error)) {
+        ra2yr::log_error(error);
+        return 1;
+    }
+    if (!renderer.set_atlas(atlas.rgba, atlas.atlas_width, atlas.atlas_height, &error)) {
+        ra2yr::log_error(error);
+        renderer.shutdown();
+        return 1;
+    }
+    renderer.set_tiles(atlas.tiles, atlas.tile_width, atlas.tile_height);
+
+    float camera_x = static_cast<float>(atlas.min_x + atlas.max_x) * 0.5f;
+    float camera_y = static_cast<float>(atlas.min_y + atlas.max_y) * 0.5f;
+    float zoom = 1.0f;
+    ra2yr::log_info(title, ": ", atlas.tiles.size(), " tiles, atlas ", atlas.atlas_width,
+                    "x", atlas.atlas_height, ", renderer ", renderer.backend());
+
+    int frames = 0;
+    const bool want_shot = !screenshot.empty();
+    bool dragging = false;
+    float last_mouse_x = 0.0f;
+    float last_mouse_y = 0.0f;
+    while (!window->should_close()) {
+        window->poll();
+        const ra2yr::platform::InputState& input = window->input();
+        if (input.escape) {
+            break;
+        }
+        if (input.left) {
+            if (!dragging) {
+                dragging = true;
+                last_mouse_x = input.mouse_x;
+                last_mouse_y = input.mouse_y;
+            }
+            camera_x -= (input.mouse_x - last_mouse_x) / zoom;
+            camera_y -= (input.mouse_y - last_mouse_y) / zoom;
+            last_mouse_x = input.mouse_x;
+            last_mouse_y = input.mouse_y;
+        } else {
+            dragging = false;
+        }
+        if (input.wheel != 0.0f) {
+            zoom *= std::pow(1.1f, input.wheel);
+            zoom = std::clamp(zoom, 0.25f, 4.0f);
+        }
+        renderer.set_camera(camera_x, camera_y, zoom);
+
+        if (want_shot && frames == 3) {
+            renderer.request_screenshot(screenshot);
+        }
+        renderer.render();
+        ++frames;
+        if (want_shot && renderer.screenshot_ready()) {
+            break;
+        }
+        if (want_shot && frames > 240) {
+            ra2yr::log_warn("screenshot timed out");
+            break;
+        }
+    }
+    renderer.shutdown();
+    return 0;
+}
+#endif
+
 int run_terrain(const std::string& tmp_path, const std::string& pal_path, int cols, int rows,
                 const std::string& screenshot) {
     std::ifstream tmp_in(tmp_path, std::ios::binary);
@@ -156,68 +254,58 @@ int run_terrain(const std::string& tmp_path, const std::string& pal_path, int co
         ra2yr::log_error("TMP has no tiles");
         return 1;
     }
-
+    const auto atlas = ra2yr::render::build_grid_terrain(
+        tmp->to_rgba(tmp->tile(0), *palette), static_cast<int>(tmp->tile_width()),
+        static_cast<int>(tmp->tile_height()), cols, rows);
 #if defined(RA2YR_PLATFORM_SDL) && defined(RA2YR_RENDER_BGFX)
-    auto platform = ra2yr::platform::make_sdl_platform();
-    if (!platform) {
-        ra2yr::log_error("SDL3 unavailable");
-        return 1;
-    }
-    ra2yr::platform::WindowDesc desc;
-    desc.width = 1280;
-    desc.height = 800;
-    desc.title = "ra2yr terrain";
-    desc.visible = true;
-    auto window = platform->create_window(desc);
-    if (!window) {
-        ra2yr::log_error("failed to create a window");
-        return 1;
-    }
-
-    ra2yr::render::BgfxRenderer renderer;
-    if (!renderer.initialize(window->native_window(), window->width(), window->height(),
-                             &error)) {
-        ra2yr::log_error(error);
-        return 1;
-    }
-    const auto& tile = tmp->tile(0);
-    const auto rgba = tmp->to_rgba(tile, *palette);
-    if (!renderer.set_tile_texture(rgba, static_cast<int>(tmp->tile_width()),
-                                   static_cast<int>(tmp->tile_height()), &error)) {
-        ra2yr::log_error(error);
-        renderer.shutdown();
-        return 1;
-    }
-    renderer.set_grid(cols, rows, static_cast<int>(tmp->tile_width()),
-                      static_cast<int>(tmp->tile_height()));
-    ra2yr::log_info("terrain ", tmp_path, ": tile ", tmp->tile_width(), "x",
-                    tmp->tile_height(), ", grid ", cols, "x", rows, ", renderer ",
-                    renderer.backend());
-
-    int frames = 0;
-    const bool want_shot = !screenshot.empty();
-    while (!window->should_close()) {
-        window->poll();
-        if (want_shot && frames == 3) {
-            renderer.request_screenshot(screenshot);
-        }
-        renderer.render();
-        ++frames;
-        if (want_shot && renderer.screenshot_ready()) {
-            break;
-        }
-        if (want_shot && frames > 240) {
-            ra2yr::log_warn("screenshot timed out");
-            break;
-        }
-    }
-    renderer.shutdown();
-    return 0;
+    return run_viewer(atlas, "ra2yr terrain", screenshot);
 #else
-    static_cast<void>(cols);
-    static_cast<void>(rows);
     static_cast<void>(screenshot);
     ra2yr::log_error("terrain rendering requires RA2YR_ENABLE_SDL3 and RA2YR_ENABLE_BGFX");
+    return 1;
+#endif
+}
+
+int run_map(const std::string& map_path, const std::string& theater_path,
+            const std::string& tiles_dir, const std::string& pal_path,
+            const std::string& screenshot) {
+    std::ifstream map_in(map_path, std::ios::binary);
+    std::ifstream theater_in(theater_path);
+    std::ifstream pal_in(pal_path, std::ios::binary);
+    if (!map_in || !theater_in || !pal_in) {
+        ra2yr::log_error("cannot read the map, theater ini, or palette");
+        return 1;
+    }
+    std::vector<std::uint8_t> map_bytes((std::istreambuf_iterator<char>(map_in)), {});
+    std::string theater_text((std::istreambuf_iterator<char>(theater_in)), {});
+    std::vector<std::uint8_t> pal_bytes((std::istreambuf_iterator<char>(pal_in)), {});
+
+    std::string error;
+    auto map = ra2yr::formats::MapFile::from_bytes(map_bytes, &error);
+    if (!map) {
+        ra2yr::log_error("map: ", error);
+        return 1;
+    }
+    auto palette = ra2yr::formats::Palette::from_bytes(pal_bytes, &error);
+    if (!palette) {
+        ra2yr::log_error("palette: ", error);
+        return 1;
+    }
+    const auto theater =
+        ra2yr::formats::Theater::from_ini(ra2yr::formats::IniFile::parse(theater_text));
+    auto atlas =
+        ra2yr::render::build_map_terrain(*map, theater, tiles_dir, *palette, &error);
+    if (!atlas) {
+        ra2yr::log_error("terrain: ", error);
+        return 1;
+    }
+    ra2yr::log_info("map ", map_path, ": theater ", map->theater(), ", ", map->width(), "x",
+                    map->height(), ", ", map->cells().size(), " cells");
+#if defined(RA2YR_PLATFORM_SDL) && defined(RA2YR_RENDER_BGFX)
+    return run_viewer(*atlas, "ra2yr map", screenshot);
+#else
+    static_cast<void>(screenshot);
+    ra2yr::log_error("map rendering requires RA2YR_ENABLE_SDL3 and RA2YR_ENABLE_BGFX");
     return 1;
 #endif
 }
@@ -231,10 +319,13 @@ int main(int argc, char** argv) {
     std::string extract_dir;
     std::string tmp_file;
     std::string pal_file;
+    std::string map_file;
+    std::string theater_file;
+    std::string tiles_dir;
     std::string screenshot;
     int grid_cols = 16;
     int grid_rows = 16;
-    enum class Mode { Game, List, Tree, Extract, Terrain } mode = Mode::Game;
+    enum class Mode { Game, List, Tree, Extract, Terrain, Map } mode = Mode::Game;
 
     // Development builds are verbose by default; release builds stay quiet
     // unless asked otherwise.
@@ -324,6 +415,39 @@ int main(int argc, char** argv) {
             mode = Mode::Terrain;
             continue;
         }
+        if (std::strcmp(argv[i], "--map") == 0) {
+            if (i + 1 >= argc) {
+                std::fprintf(stderr, "--map requires a file\n");
+                return 2;
+            }
+            map_file = argv[++i];
+            mode = Mode::Map;
+            continue;
+        }
+        if (std::strcmp(argv[i], "--theater-ini") == 0) {
+            if (i + 1 >= argc) {
+                std::fprintf(stderr, "--theater-ini requires a file\n");
+                return 2;
+            }
+            theater_file = argv[++i];
+            continue;
+        }
+        if (std::strcmp(argv[i], "--tiles-dir") == 0) {
+            if (i + 1 >= argc) {
+                std::fprintf(stderr, "--tiles-dir requires a directory\n");
+                return 2;
+            }
+            tiles_dir = argv[++i];
+            continue;
+        }
+        if (std::strcmp(argv[i], "--palette") == 0) {
+            if (i + 1 >= argc) {
+                std::fprintf(stderr, "--palette requires a file\n");
+                return 2;
+            }
+            pal_file = argv[++i];
+            continue;
+        }
         if (std::strcmp(argv[i], "--grid") == 0) {
             if (i + 1 >= argc) {
                 std::fprintf(stderr, "--grid requires COLSxROWS\n");
@@ -368,6 +492,13 @@ int main(int argc, char** argv) {
         names_ptr = &names;
     }
 
+    if (mode == Mode::Map) {
+        if (theater_file.empty() || tiles_dir.empty() || pal_file.empty()) {
+            ra2yr::log_error("--map needs --theater-ini, --tiles-dir, and --palette");
+            return 2;
+        }
+        return run_map(map_file, theater_file, tiles_dir, pal_file, screenshot);
+    }
     if (mode == Mode::Terrain) {
         return run_terrain(tmp_file, pal_file, grid_cols, grid_rows, screenshot);
     }

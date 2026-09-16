@@ -72,6 +72,14 @@ screenshot (PPM):
 ./build/gfx/src/ra2yr --terrain <tile.tem> <theater.pal> --grid 16x16 --screenshot out.ppm
 ```
 
+Render a real map (`.map`, `.mpr` for RA2, `.yrm` for YR; `.mmx`/`.yro` are MIX
+archives containing a `.map`):
+
+```
+./build/gfx/src/ra2yr --map <map.mpr> --theater-ini <urbanmd.ini> \
+    --tiles-dir <theater-tiles-dir> --palette <urban.pal> --screenshot out.ppm
+```
+
 ## Layout
 
 - `src/core/` - platform-free kernel: logging, version, utilities.

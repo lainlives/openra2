@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "platform/platform.h"
+#include "render/terrain.h"
 
 namespace ra2yr::render {
 
@@ -39,10 +40,16 @@ public:
     bool valid() const;
     std::string backend() const;
 
-    // Terrain. `rgba` is a tightly packed RGBA8 tile image.
-    bool set_tile_texture(const std::vector<std::uint8_t>& rgba, int width, int height,
-                          std::string* error = nullptr);
-    void set_grid(int cols, int rows, int tile_width, int tile_height);
+    // Upload the tile atlas. `rgba` is tightly packed RGBA8.
+    bool set_atlas(const std::vector<std::uint8_t>& rgba, int width, int height,
+                   std::string* error = nullptr);
+
+    // Replace the terrain geometry. Tiles share one size and the atlas.
+    void set_tiles(std::vector<TileInstance> tiles, int tile_width, int tile_height);
+
+    // Camera centre in world pixels and zoom (1.0 = one world pixel per screen
+    // pixel).
+    void set_camera(float center_x, float center_y, float zoom);
 
     // Queue a screenshot (PPM) for the end of the next frame.
     void request_screenshot(const std::string& path);

@@ -5,6 +5,21 @@ reconstruction (`reference/Tiberian sun reimplementation/`, "OpenTS") and the
 Yuri's Revenge engine we are rebuilding. It drives milestone M1 in
 [`plan.md`](../plan.md) and is updated as each difference is confirmed.
 
+
+ - Some notes on bugs:
+
+I have noticed that many reference documentations and code for RA2/YR formats
+is notably incorrect or bugged.  We should document anything odd we find in
+the file type documentation we have on hand since they are considered _THE_
+reference. I would like to be able to finally provide the authorative reference
+that even the original developers lost.
+
+RA2 was forked from tiberian sun in early development, so theres some weirdness
+due to that too.  And at some point between Red alert 2 and yuris revenge when
+Westwood was moving to EA studios, they actually *lost* a lot of dev tools and
+a lot of YR stuff uses unofficial implementation references which makes up most
+of that specific game's engine oddities.
+
 ## Method
 
 A delta entry is only accepted with evidence. In rough order of strength:
@@ -65,10 +80,17 @@ against OpenTS by file and behavior.
 
 - YR multiplayer modes and CnCNet client integration; protocol behaviour is
   documented only by packet captures so far.
+       - If we manage to find the existing protocol documentation to be incorrect, that has to be documented.
 
 ## Open questions
 
 - Exact save-game compatibility target.
+      - Current idea is, 'would be nice, not at all required' I mostly included savegame
+        files in the chance they are helpful.
+
 - Which YR logic bugs to reproduce versus fix behind a flag.
+      - This is the question of hte century, even if we plan on 'original' and 'enhanced' 
+        modes, some of the original bugs probably should get fixed I should think.
+
 - Full enumeration of rules keys new in YR versus TS.
 - Native reader for the Blowfish-encrypted MIX index in the C++ VFS (M2).

@@ -2,6 +2,7 @@
 
 #include <bgfx/bgfx.h>
 
+#include <algorithm>
 #include <atomic>
 #include <cstdarg>
 #include <cstdint>
@@ -11,7 +12,6 @@
 #include <string>
 
 #include "core/log.h"
-#include "render/iso.h"
 
 #include "spirv/vs_tile.sc.bin.h"
 #include "glsl/vs_tile.sc.bin.h"
@@ -174,11 +174,12 @@ struct BgfxRenderer::Impl {
     bgfx::VertexBufferHandle vbh = BGFX_INVALID_HANDLE;
     bgfx::IndexBufferHandle ibh = BGFX_INVALID_HANDLE;
     std::uint32_t index_count = 0;
-    bool have_grid = false;
-    int grid_cols = 0;
-    int grid_rows = 0;
+    bool have_tiles = false;
     int tile_width = 0;
     int tile_height = 0;
+    float camera_x = 0.0f;
+    float camera_y = 0.0f;
+    float zoom = 1.0f;
 
     void destroy_geometry() {
         if (bgfx::isValid(vbh)) {
@@ -294,8 +295,8 @@ void BgfxRenderer::resize(int width, int height) {
     bgfx::reset(BGFX_RESET_VSYNC, &swap);
 }
 
-bool BgfxRenderer::set_tile_texture(const std::vector<std::uint8_t>& rgba, int width,
-                                    int height, std::string* error) {
+bool BgfxRenderer::set_atlas(const std::vector<std::uint8_t>& rgba, int width,
+                             int height, std::string* error) {
     if (!impl_->initialized) {
         if (error != nullptr) {
             *error = "renderer is not initialized";
@@ -321,30 +322,31 @@ bool BgfxRenderer::set_tile_texture(const std::vector<std::uint8_t>& rgba, int w
     return bgfx::isValid(impl_->texture);
 }
 
-void BgfxRenderer::set_grid(int cols, int rows, int tile_width, int tile_height) {
-    if (!impl_->initialized || cols <= 0 || rows <= 0 || tile_width <= 0 ||
-        tile_height <= 0) {
+void BgfxRenderer::set_tiles(std::vector<TileInstance> tiles, int tile_width,
+                             int tile_height) {
+    if (!impl_->initialized || tiles.empty() || tile_width <= 0 || tile_height <= 0) {
         return;
     }
     impl_->destroy_geometry();
 
-    const auto order = build_iso_order(cols, rows);
+    std::stable_sort(tiles.begin(), tiles.end(),
+                     [](const TileInstance& a, const TileInstance& b) {
+                         return a.depth < b.depth;
+                     });
+
     std::vector<PosTexVertex> vertices;
     std::vector<std::uint32_t> indices;
-    vertices.reserve(order.size() * 4);
-    indices.reserve(order.size() * 6);
+    vertices.reserve(tiles.size() * 4);
+    indices.reserve(tiles.size() * 6);
 
-    for (const IsoCell& cell : order) {
-        const IsoPoint p = cell_to_screen(cell.cx, cell.cy, tile_width, tile_height);
-        const float x = static_cast<float>(p.x);
-        const float y = static_cast<float>(p.y);
-        const float w = static_cast<float>(tile_width);
-        const float h = static_cast<float>(tile_height);
+    const float w = static_cast<float>(tile_width);
+    const float h = static_cast<float>(tile_height);
+    for (const TileInstance& tile : tiles) {
         const std::uint32_t base = static_cast<std::uint32_t>(vertices.size());
-        vertices.push_back({x, y, 0.0f, 0.0f, 0.0f});
-        vertices.push_back({x + w, y, 0.0f, 1.0f, 0.0f});
-        vertices.push_back({x + w, y + h, 0.0f, 1.0f, 1.0f});
-        vertices.push_back({x, y + h, 0.0f, 0.0f, 1.0f});
+        vertices.push_back({tile.x, tile.y, 0.0f, tile.u0, tile.v0});
+        vertices.push_back({tile.x + w, tile.y, 0.0f, tile.u1, tile.v0});
+        vertices.push_back({tile.x + w, tile.y + h, 0.0f, tile.u1, tile.v1});
+        vertices.push_back({tile.x, tile.y + h, 0.0f, tile.u0, tile.v1});
         indices.insert(indices.end(),
                        {base, base + 1, base + 2, base, base + 2, base + 3});
     }
@@ -357,14 +359,18 @@ void BgfxRenderer::set_grid(int cols, int rows, int tile_width, int tile_height)
     impl_->ibh = bgfx::createIndexBuffer(ib_mem, BGFX_BUFFER_INDEX32);
     impl_->index_count = static_cast<std::uint32_t>(indices.size());
 
-    impl_->grid_cols = cols;
-    impl_->grid_rows = rows;
     impl_->tile_width = tile_width;
     impl_->tile_height = tile_height;
-    impl_->have_grid = true;
+    impl_->have_tiles = true;
 
-    log(LogLevel::Debug, "terrain grid ", cols, "x", rows, ": ", order.size(),
-        " cells, ", impl_->index_count, " indices");
+    log(LogLevel::Debug, "terrain: ", tiles.size(), " tiles, ", impl_->index_count,
+        " indices");
+}
+
+void BgfxRenderer::set_camera(float center_x, float center_y, float zoom) {
+    impl_->camera_x = center_x;
+    impl_->camera_y = center_y;
+    impl_->zoom = zoom > 0.0f ? zoom : 1.0f;
 }
 
 void BgfxRenderer::request_screenshot(const std::string& path) {
@@ -387,27 +393,20 @@ void BgfxRenderer::render() {
                       static_cast<std::uint16_t>(impl_->height));
     bgfx::touch(kView);
 
-    if (impl_->have_grid && bgfx::isValid(impl_->texture) &&
+    if (impl_->have_tiles && bgfx::isValid(impl_->texture) &&
         bgfx::isValid(impl_->program) && bgfx::isValid(impl_->vbh) &&
         bgfx::isValid(impl_->ibh)) {
-        const int rows = impl_->grid_rows;
-        const int cols = impl_->grid_cols;
-        const int min_x = -(rows - 1) * (impl_->tile_width / 2);
-        const int max_x = (cols - 1) * (impl_->tile_width / 2) + impl_->tile_width;
-        const int min_y = 0;
-        const int max_y =
-            (cols - 1 + rows - 1) * (impl_->tile_height / 2) + impl_->tile_height;
-        const float cam_x =
-            static_cast<float>(min_x + max_x) * 0.5f - static_cast<float>(impl_->width) * 0.5f;
-        const float cam_y =
-            static_cast<float>(min_y + max_y) * 0.5f - static_cast<float>(impl_->height) * 0.5f;
+        const float width = static_cast<float>(impl_->width);
+        const float height = static_cast<float>(impl_->height);
+        const float zoom = impl_->zoom;
 
+        // world -> window: (world - centre) * zoom + viewport/2
         float proj[16] = {};
-        proj[0] = 2.0f / static_cast<float>(impl_->width);
-        proj[5] = -2.0f / static_cast<float>(impl_->height);
+        proj[0] = 2.0f * zoom / width;
+        proj[5] = -2.0f * zoom / height;
         proj[10] = 1.0f;
-        proj[12] = -2.0f * cam_x / static_cast<float>(impl_->width) - 1.0f;
-        proj[13] = 2.0f * cam_y / static_cast<float>(impl_->height) + 1.0f;
+        proj[12] = -2.0f * zoom * impl_->camera_x / width;
+        proj[13] = 2.0f * zoom * impl_->camera_y / height + 1.0f;
         proj[15] = 1.0f;
 
         bgfx::setUniform(impl_->u_ortho, proj);
