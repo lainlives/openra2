@@ -26,6 +26,8 @@ void print_usage() {
                  "Usage: ra2yr [options]\n"
                  "  --version             print the build identity and exit\n"
                  "  --headless            initialize and exit without a frame loop\n"
+                 "  --verbose             enable debug logging (default in debug builds)\n"
+                 "  --log-level LEVEL     trace|debug|info|warn|error\n"
                  "  --names FILE          filename database for the MIX operations\n"
                  "  --mix-list FILE       list the direct entries of a MIX archive\n"
                  "  --mix-tree FILE       list the archive tree, recursing into .mix\n"
@@ -130,6 +132,13 @@ int main(int argc, char** argv) {
     std::string extract_dir;
     enum class Mode { Game, List, Tree, Extract } mode = Mode::Game;
 
+    // Development builds are verbose by default; release builds stay quiet
+    // unless asked otherwise.
+    ra2yr::LogLevel log_level = ra2yr::LogLevel::Info;
+#ifndef NDEBUG
+    log_level = ra2yr::LogLevel::Debug;
+#endif
+
     for (int i = 1; i < argc; ++i) {
         if (std::strcmp(argv[i], "--version") == 0) {
             std::printf("%s\n", ra2yr::build_summary().c_str());
@@ -137,6 +146,32 @@ int main(int argc, char** argv) {
         }
         if (std::strcmp(argv[i], "--headless") == 0) {
             headless = true;
+            continue;
+        }
+        if (std::strcmp(argv[i], "--verbose") == 0 || std::strcmp(argv[i], "-v") == 0) {
+            log_level = ra2yr::LogLevel::Debug;
+            continue;
+        }
+        if (std::strcmp(argv[i], "--log-level") == 0) {
+            if (i + 1 >= argc) {
+                std::fprintf(stderr, "--log-level requires a value\n");
+                return 2;
+            }
+            const std::string value = argv[++i];
+            if (value == "trace") {
+                log_level = ra2yr::LogLevel::Trace;
+            } else if (value == "debug") {
+                log_level = ra2yr::LogLevel::Debug;
+            } else if (value == "info") {
+                log_level = ra2yr::LogLevel::Info;
+            } else if (value == "warn") {
+                log_level = ra2yr::LogLevel::Warn;
+            } else if (value == "error") {
+                log_level = ra2yr::LogLevel::Error;
+            } else {
+                std::fprintf(stderr, "unknown log level: %s\n", value.c_str());
+                return 2;
+            }
             continue;
         }
         if (std::strcmp(argv[i], "--names") == 0) {
@@ -206,7 +241,7 @@ int main(int argc, char** argv) {
         return extract_mix(mix_file, extract_dir, names_ptr);
     }
 
-    ra2yr::set_log_level(ra2yr::LogLevel::Info);
+    ra2yr::set_log_level(log_level);
     ra2yr::log_info(ra2yr::build_summary(), " starting");
 
     std::unique_ptr<ra2yr::platform::Platform> platform;

@@ -2,12 +2,56 @@
 
 #include <bgfx/bgfx.h>
 
+#include <cstdarg>
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <string>
+
+#include "core/log.h"
 
 namespace ra2yr::render {
 namespace {
 
 constexpr bgfx::ViewId kView = 0;
+
+// Routes bgfx's own diagnostics through the engine logger. Trace messages are
+// emitted at debug level, so they show in development builds or with
+// --verbose, and stay quiet otherwise.
+class BgfxLog final : public bgfx::CallbackI {
+public:
+    void fatal(const char* file_path, std::uint16_t line, bgfx::Fatal::Enum /*code*/,
+               const char* str) override {
+        log(LogLevel::Error, "[bgfx] fatal: ", str, " (", file_path, ":", line, ")");
+        std::abort();
+    }
+
+    void traceVargs(const char* file_path, std::uint16_t line, const char* format,
+                    va_list arg_list) override {
+        char buffer[2048];
+        std::vsnprintf(buffer, sizeof(buffer), format, arg_list);
+        std::string message(buffer);
+        while (!message.empty() && (message.back() == '\n' || message.back() == '\r')) {
+            message.pop_back();
+        }
+        log(LogLevel::Debug, "[bgfx] ", message, " (", file_path, ":", line, ")");
+    }
+
+    void profilerBegin(const char*, std::uint32_t, const char*, std::uint16_t) override {}
+    void profilerBeginLiteral(const char*, std::uint32_t, const char*, std::uint16_t) override {}
+    void profilerEnd() override {}
+    std::uint32_t cacheReadSize(std::uint64_t) override { return 0; }
+    bool cacheRead(std::uint64_t, void*, std::uint32_t) override { return false; }
+    void cacheWrite(std::uint64_t, const void*, std::uint32_t) override {}
+    void screenShot(const char*, std::uint32_t, std::uint32_t, std::uint32_t,
+                    bgfx::TextureFormat::Enum, const void*, std::uint32_t, bool) override {}
+    void captureBegin(std::uint32_t, std::uint32_t, std::uint32_t,
+                      bgfx::TextureFormat::Enum, bool) override {}
+    void captureEnd() override {}
+    void captureFrame(const void*, std::uint32_t) override {}
+};
+
+BgfxLog g_bgfx_log;
 
 }  // namespace
 
@@ -28,6 +72,7 @@ bool BgfxRenderer::initialize(const platform::NativeWindow& window, int width, i
     init.swapChain.height = static_cast<std::uint32_t>(height);
     init.swapChain.numBackBuffers = 2;
     init.reset = BGFX_RESET_VSYNC;
+    init.callback = &g_bgfx_log;
 
     if (!bgfx::init(init)) {
         if (error != nullptr) {

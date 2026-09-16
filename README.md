@@ -45,6 +45,8 @@ cmake --build build/gfx
 ```
 
 This opens an SDL3 window and initializes bgfx (renderer auto-selected).
+Debug builds log verbosely, including bgfx's own diagnostics; pass
+`--log-level info` to quiet them.
 
 On Windows, configure manually if you prefer:
 

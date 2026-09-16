@@ -46,3 +46,33 @@ jobs:
           python3 scripts/mixer.py list /tmp/fixture/test.mix
           python3 scripts/mixer.py extract -r -d /tmp/fixture/out /tmp/fixture/test.mix
           diff -r /tmp/fixture/src /tmp/fixture/out --exclude="local mix database.dat"
+
+  gfx-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install windowing and graphics headers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build \
+            libx11-dev libxext-dev libxrandr-dev libxi-dev libxcursor-dev \
+            libxfixes-dev libxinerama-dev libxss-dev libxxf86vm-dev \
+            libgl1-mesa-dev libegl1-mesa-dev \
+            libvulkan-dev libwayland-dev libxkbcommon-dev wayland-protocols
+          sudo apt-get install -y libgles-dev || sudo apt-get install -y libgles2-mesa-dev
+
+      - name: Configure
+        run: >
+          cmake -S . -B build/gfx -G Ninja
+          -DRA2YR_BUILD_TESTS=ON
+          -DRA2YR_ENABLE_SDL3=ON
+          -DRA2YR_ENABLE_BGFX=ON
+
+      - name: Build
+        run: cmake --build build/gfx
+
+      - name: Test
+        run: ctest --test-dir build/gfx --output-on-failure

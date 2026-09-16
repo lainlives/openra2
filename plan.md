@@ -352,6 +352,10 @@ Reverse-chronological; evidence belongs in the owning docs.
   `RA2YR_ENABLE_SDL3`/`RA2YR_ENABLE_BGFX`. Verified on Linux by opening an SDL3
   window and initializing bgfx (Vulkan/AMD radv), rendering to timeout and
   shutting down cleanly. Default dependency-free build and tests unchanged.
+- bgfx diagnostics route through the engine logger via a `bgfx::CallbackI`;
+  debug builds default to `Debug` level (verbose, including bgfx), release
+  builds to `Info`, with `--verbose` / `--log-level` overrides. CI gained a
+  `gfx-build` job that configures and builds the SDL3/bgfx configuration.
 
 ---
 
