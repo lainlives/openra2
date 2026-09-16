@@ -59,6 +59,40 @@ void print_archive_flags(const ra2yr::vfs::MixArchive& archive, std::string* out
     if (archive.encrypted()) *out += " encrypted";
 }
 
+bool ends_with_ci(std::string_view text, std::string_view suffix) {
+    if (text.size() < suffix.size()) {
+        return false;
+    }
+    const std::size_t base = text.size() - suffix.size();
+    for (std::size_t i = 0; i < suffix.size(); ++i) {
+        if (std::tolower(static_cast<unsigned char>(text[base + i])) !=
+            std::tolower(static_cast<unsigned char>(suffix[i]))) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool contains_ci(const std::uint8_t* data, std::size_t size, std::string_view needle) {
+    if (needle.empty() || size < needle.size()) {
+        return false;
+    }
+    for (std::size_t i = 0; i + needle.size() <= size; ++i) {
+        bool match = true;
+        for (std::size_t j = 0; j < needle.size(); ++j) {
+            if (std::tolower(data[i + j]) !=
+                std::tolower(static_cast<unsigned char>(needle[j]))) {
+                match = false;
+                break;
+            }
+        }
+        if (match) {
+            return true;
+        }
+    }
+    return false;
+}
+
 int list_mix(const std::string& path, const ra2yr::vfs::NameDatabase* names) {
     std::string error;
     auto archive = ra2yr::vfs::MixArchive::open(path, &error, names);
@@ -279,6 +313,19 @@ int run_map(const std::string& map_path, const std::string& theater_path,
     std::vector<std::uint8_t> map_bytes((std::istreambuf_iterator<char>(map_in)), {});
     std::string theater_text((std::istreambuf_iterator<char>(theater_in)), {});
     std::vector<std::uint8_t> pal_bytes((std::istreambuf_iterator<char>(pal_in)), {});
+
+    // .mmx/.yro are MIX archives holding a .map and a .pkt. Retail archives
+    // carry no names, so pick the member that contains the map data.
+    if (auto member = ra2yr::vfs::extract_mix_member(
+            map_bytes, [](std::string_view name, const std::vector<std::uint8_t>& data) {
+                if (ends_with_ci(name, ".map")) {
+                    return true;
+                }
+                return contains_ci(data.data(), data.size(), "[isomappack5]");
+            })) {
+        ra2yr::log_info("unwrapped a MIX-packaged map (", member->size(), " bytes)");
+        map_bytes = std::move(*member);
+    }
 
     std::string error;
     auto map = ra2yr::formats::MapFile::from_bytes(map_bytes, &error);

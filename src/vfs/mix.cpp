@@ -180,6 +180,20 @@ std::vector<std::uint8_t> MixArchive::read_at_vec(std::uint64_t offset,
 }
 
 bool MixArchive::parse(std::string* error) {
+    std::uint64_t total_size = memory_.size();
+    if (!in_memory_) {
+        stream_.clear();
+        stream_.seekg(0, std::ios::end);
+        const std::streamoff end = stream_.tellg();
+        if (end < 0) {
+            if (error != nullptr) {
+                *error = name_ + ": cannot determine size";
+            }
+            return false;
+        }
+        total_size = static_cast<std::uint64_t>(end);
+    }
+
     std::uint8_t head[10] = {};
     if (!read_at(0, sizeof(head), head)) {
         if (error != nullptr) {
@@ -266,6 +280,13 @@ bool MixArchive::parse(std::string* error) {
         entry.id = le32(p);
         entry.offset = le32(p + 4);
         entry.size = le32(p + 8);
+        if (static_cast<std::uint64_t>(body_offset_) + entry.offset + entry.size >
+            total_size) {
+            if (error != nullptr) {
+                *error = name_ + ": entry lies outside the archive";
+            }
+            return false;
+        }
         entries_.push_back(std::move(entry));
     }
 
@@ -422,6 +443,28 @@ void for_each_archive(const std::filesystem::path& path,
         return;
     }
     expand_recursive(root, {root->name()}, 0, max_depth, names, nullptr, &visitor, error);
+}
+
+std::optional<std::vector<std::uint8_t>> extract_mix_member(
+    const std::vector<std::uint8_t>& bytes,
+    const std::function<bool(std::string_view, const std::vector<std::uint8_t>&)>&
+        predicate,
+    const NameDatabase* names) {
+    std::string error;
+    auto archive = MixArchive::open_memory(bytes, "<archive>", &error, names);
+    if (!archive) {
+        return std::nullopt;
+    }
+    for (const MixEntry& entry : archive->entries()) {
+        std::vector<std::uint8_t> data = archive->read(entry);
+        if (data.empty()) {
+            continue;
+        }
+        if (predicate(entry.name, data)) {
+            return data;
+        }
+    }
+    return std::nullopt;
 }
 
 }  // namespace ra2yr::vfs

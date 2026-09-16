@@ -65,7 +65,8 @@ To render a real map (`.map`, RA2's `.mpr`, YR's `.yrm`):
 
 Drag with the left mouse button to pan and use the wheel to zoom; Escape
 closes the window. `.mmx` and `.yro` maps are MIX archives containing a `.map`
-(the `.pkt` beside it is redundant matchmaking metadata and is not needed).
+and a `.pkt`; the engine detects and unwraps them automatically, and the
+`.pkt` (redundant matchmaking metadata) is ignored.
 
 On Windows, configure manually if you prefer:
 

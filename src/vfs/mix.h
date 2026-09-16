@@ -117,4 +117,15 @@ void for_each_archive(const std::filesystem::path& path,
                       int max_depth = 8,
                       std::string* error = nullptr);
 
+// If `bytes` is a readable MIX archive, return the contents of the first entry
+// whose name or data satisfies `predicate`. Returns nullopt when the bytes are
+// not a MIX archive or nothing matches; used to unwrap the MIX-packaged map
+// formats (.mmx/.yro) without relying on member names, which retail archives
+// do not carry.
+std::optional<std::vector<std::uint8_t>> extract_mix_member(
+    const std::vector<std::uint8_t>& bytes,
+    const std::function<bool(std::string_view, const std::vector<std::uint8_t>&)>&
+        predicate,
+    const NameDatabase* names = nullptr);
+
 }  // namespace ra2yr::vfs

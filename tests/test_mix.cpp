@@ -174,6 +174,31 @@ void test_old_format_roundtrip() {    const std::vector<std::uint8_t> data_a = {
     }
 }
 
+void test_extract_member() {
+    const std::string map_text = "[Map]\nTheater=URBAN\n[IsoMapPack5]\n1=aa\n";
+    const std::string pkt_text = "[Pkt]\nSomething=1\n";
+    const std::vector<std::uint8_t> map_data(map_text.begin(), map_text.end());
+    const std::vector<std::uint8_t> pkt_data(pkt_text.begin(), pkt_text.end());
+    const auto bytes = make_old_mix({{"test.pkt", pkt_data}, {"test.map", map_data}});
+
+    const auto predicate = [](std::string_view name, const std::vector<std::uint8_t>& data) {
+        const bool named_map = name.size() >= 4 && name.substr(name.size() - 4) == ".map";
+        const std::string text(data.begin(), data.end());
+        return named_map || text.find("[IsoMapPack5]") != std::string::npos;
+    };
+
+    auto member = ra2yr::vfs::extract_mix_member(bytes, predicate);
+    CHECK(member.has_value());
+    if (member) {
+        CHECK(*member == map_data);
+    }
+
+    // Plain (non-MIX) bytes are rejected rather than misread.
+    const std::vector<std::uint8_t> plain(map_text.begin(), map_text.end());
+    auto none = ra2yr::vfs::extract_mix_member(plain, predicate);
+    CHECK(!none.has_value());
+}
+
 }  // namespace
 
 int main() {
@@ -181,6 +206,7 @@ int main() {
     test_filename_hash();
     test_nested_recursion();
     test_old_format_roundtrip();
+    test_extract_member();
 
     if (g_failures != 0) {
         std::cerr << g_failures << " check(s) failed\n";

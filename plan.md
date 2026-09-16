@@ -382,6 +382,12 @@ Reverse-chronological; evidence belongs in the owning docs.
   188 distinct tiles resolved 187/187 present on disk, 5,831 drawn, z up to 6,
   screenshot captured. `.mmx`/`.yro` are MIX archives containing a `.map`;
   their `.pkt` companion is redundant and not parsed.
+- MIX-packaged maps: `vfs::extract_mix_member` unwraps a MIX holding a map by
+  content, since retail members are anonymous. Verified against retail
+  `maps/GoldSt.mmx` (URBAN, 103x82, 16,810 cells, 14,696 drawn) and
+  `maps/Transylv.yro` (NEWURBAN, 70x70, 9,730 cells, 8,714 drawn). The archive
+  reader now also rejects entries that lie outside the file, so non-archive
+  input can never be misread as a huge MIX.
 
 ---
 

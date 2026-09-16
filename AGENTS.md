@@ -73,7 +73,7 @@ screenshot (PPM):
 ```
 
 Render a real map (`.map`, `.mpr` for RA2, `.yrm` for YR; `.mmx`/`.yro` are MIX
-archives containing a `.map`):
+archives containing a `.map` and are unwrapped automatically):
 
 ```
 ./build/gfx/src/ra2yr --map <map.mpr> --theater-ini <urbanmd.ini> \
