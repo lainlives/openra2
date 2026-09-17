@@ -14,7 +14,7 @@
 #include <vector>
 
 #include "platform/platform.h"
-#include "render/terrain.h"
+#include "render/scene.h"
 
 namespace ra2yr::render {
 
@@ -44,13 +44,9 @@ public:
     bool set_atlas(const std::vector<std::uint8_t>& rgba, int width, int height,
                    std::string* error = nullptr);
 
-    // Replace the terrain geometry. Tiles share one size and the atlas.
-    void set_tiles(std::vector<TileInstance> tiles, int tile_width, int tile_height);
-
-    // Object sprites: a second atlas drawn over the terrain, one draw call.
-    bool set_object_atlas(const std::vector<std::uint8_t>& rgba, int width, int height,
-                          std::string* error = nullptr);
-    void set_objects(std::vector<TileInstance> objects);
+    // Replace the scene geometry. Tiles and sprites share the atlas and are
+    // drawn in one depth-sorted pass.
+    void set_tiles(std::vector<TileInstance> tiles);
 
     // Camera centre in world pixels and zoom (1.0 = one world pixel per screen
     // pixel).

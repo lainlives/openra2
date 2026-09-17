@@ -422,17 +422,24 @@ Reverse-chronological; evidence belongs in the owning docs.
   `+1` in the Y projection that shifted every view up by half a screen, and a
   TMP cell with no image data produced an empty atlas slot that crashed the
   builder. Both fixed; `--fit` and `--theater` added.
+- Map scene (`src/render/scene`): terrain tiles and `[Structures]` sprites are
+  packed into one atlas and one instance list, drawn in a single depth-sorted
+  pass, so objects and terrain interleave correctly instead of objects always
+  painting over terrain. Sprite anchoring is foundation-aware: `Foundation=NxM`
+  from art(md).ini (or rules(md).ini) places the sprite centred horizontally on
+  the footprint and stood on its bottom edge, with (x,y) the footprint's
+  top-left. Depth is `diagonal * 64 + layer`, terrain layer = z and object
+  layer = 32. Verified on `all01t.map`: 5,831 tiles + 189 sprites = 6,020
+  instances, one 4,080x1,078 atlas, 1 missing sprite (an absent file).
 - Map object sprites, first pass (`src/render/sprites`): `[Structures]` entries
   resolve through `art(md).ini` (Image, else the type name) to an SHP, frame 0
   is packed into an object atlas and drawn as a second pass over the terrain.
   Verified on `all01t.map`: 189 sprites from 50 images, 1 missing (a file not
-  present in retail). `Image=` now falls back from art(md).ini to rules(md).ini
+  present in retail). `Image=` falls back from art(md).ini to rules(md).ini
   (street lamps set it there) and the `*md` theater mixes are opened
-  (`snowmd.mix` holds some civilian buildings). Known limits: no actual
-  NewTheater per-theater letter substitution (the map's own theater art is used
-  as-is), no foundation-aware anchoring (sprites are centred on the cell and
-  stood on its bottom edge), no animation, no house remap, and sprites draw
-  after all terrain rather than depth-interleaving with it.
+  (`snowmd.mix` holds some civilian buildings). Superseded by the unified map
+  scene above; remaining limits are no NewTheater per-theater letter
+  substitution, no animation, and no house remap.
 - Test fixtures adopted: synthesized CC0 SHPs (raw + RLE-Zero), maps
   (`[Lighting]`/trigger map, dense map in plain and `.yro` form, near-limit
   `.mpr`), and a CSF, under `tests/data/` with `tests/test_data.cpp`. The new

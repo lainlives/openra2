@@ -178,12 +178,6 @@ struct BgfxRenderer::Impl {
     int tile_width = 0;
     int tile_height = 0;
 
-    bgfx::TextureHandle object_texture = BGFX_INVALID_HANDLE;
-    bgfx::VertexBufferHandle object_vbh = BGFX_INVALID_HANDLE;
-    bgfx::IndexBufferHandle object_ibh = BGFX_INVALID_HANDLE;
-    std::uint32_t object_index_count = 0;
-    bool have_objects = false;
-
     float camera_x = 0.0f;
     float camera_y = 0.0f;
     float zoom = 1.0f;
@@ -301,12 +295,6 @@ void BgfxRenderer::shutdown() {
         return;
     }
     Impl::destroy_geometry(&impl_->vbh, &impl_->ibh, &impl_->index_count);
-    Impl::destroy_geometry(&impl_->object_vbh, &impl_->object_ibh,
-                           &impl_->object_index_count);
-    if (bgfx::isValid(impl_->object_texture)) {
-        bgfx::destroy(impl_->object_texture);
-        impl_->object_texture = BGFX_INVALID_HANDLE;
-    }
     if (bgfx::isValid(impl_->texture)) {
         bgfx::destroy(impl_->texture);
         impl_->texture = BGFX_INVALID_HANDLE;
@@ -369,9 +357,8 @@ bool BgfxRenderer::set_atlas(const std::vector<std::uint8_t>& rgba, int width,
     return bgfx::isValid(impl_->texture);
 }
 
-void BgfxRenderer::set_tiles(std::vector<TileInstance> tiles, int tile_width,
-                             int tile_height) {
-    if (!impl_->initialized || tiles.empty() || tile_width <= 0 || tile_height <= 0) {
+void BgfxRenderer::set_tiles(std::vector<TileInstance> tiles) {
+    if (!impl_->initialized || tiles.empty()) {
         return;
     }
     Impl::destroy_geometry(&impl_->vbh, &impl_->ibh, &impl_->index_count);
@@ -379,62 +366,11 @@ void BgfxRenderer::set_tiles(std::vector<TileInstance> tiles, int tile_width,
                      [](const TileInstance& a, const TileInstance& b) {
                          return a.depth < b.depth;
                      });
-    impl_->build_geometry(tiles, static_cast<float>(tile_width),
-                          static_cast<float>(tile_height), &impl_->vbh, &impl_->ibh,
+    impl_->build_geometry(tiles, 1.0f, 1.0f, &impl_->vbh, &impl_->ibh,
                           &impl_->index_count);
-    impl_->tile_width = tile_width;
-    impl_->tile_height = tile_height;
     impl_->have_tiles = true;
     log(LogLevel::Debug, "terrain: ", tiles.size(), " tiles, ", impl_->index_count,
         " indices");
-}
-
-bool BgfxRenderer::set_object_atlas(const std::vector<std::uint8_t>& rgba, int width,
-                                    int height, std::string* error) {
-    if (!impl_->initialized) {
-        if (error != nullptr) {
-            *error = "renderer is not initialized";
-        }
-        return false;
-    }
-    if (width <= 0 || height <= 0 ||
-        rgba.size() < static_cast<std::size_t>(width) * height * 4) {
-        if (error != nullptr) {
-            *error = "object atlas is too small";
-        }
-        return false;
-    }
-    if (bgfx::isValid(impl_->object_texture)) {
-        bgfx::destroy(impl_->object_texture);
-    }
-    impl_->object_texture = bgfx::createTexture2D(
-        static_cast<std::uint16_t>(width), static_cast<std::uint16_t>(height), false, 1,
-        bgfx::TextureFormat::RGBA8,
-        BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP | BGFX_SAMPLER_MIN_POINT |
-            BGFX_SAMPLER_MAG_POINT,
-        bgfx::copy(rgba.data(), static_cast<std::uint32_t>(rgba.size())));
-    return bgfx::isValid(impl_->object_texture);
-}
-
-void BgfxRenderer::set_objects(std::vector<TileInstance> objects) {
-    if (!impl_->initialized) {
-        return;
-    }
-    Impl::destroy_geometry(&impl_->object_vbh, &impl_->object_ibh,
-                           &impl_->object_index_count);
-    impl_->have_objects = false;
-    if (objects.empty()) {
-        return;
-    }
-    std::stable_sort(objects.begin(), objects.end(),
-                     [](const TileInstance& a, const TileInstance& b) {
-                         return a.depth < b.depth;
-                     });
-    impl_->build_geometry(objects, 0.0f, 0.0f, &impl_->object_vbh, &impl_->object_ibh,
-                          &impl_->object_index_count);
-    impl_->have_objects = true;
-    log(LogLevel::Debug, "objects: ", objects.size(), " sprites, ",
-        impl_->object_index_count, " indices");
 }
 
 void BgfxRenderer::set_camera(float center_x, float center_y, float zoom) {
@@ -486,18 +422,6 @@ void BgfxRenderer::render() {
                                              BGFX_STATE_BLEND_INV_SRC_ALPHA));
         bgfx::setVertexBuffer(0, impl_->vbh);
         bgfx::setIndexBuffer(impl_->ibh, 0, impl_->index_count);
-        bgfx::submit(kView, impl_->program);
-    }
-
-    if (impl_->have_objects && bgfx::isValid(impl_->object_texture) &&
-        bgfx::isValid(impl_->program) && bgfx::isValid(impl_->object_vbh) &&
-        bgfx::isValid(impl_->object_ibh)) {
-        bgfx::setTexture(0, impl_->s_tex, impl_->object_texture);
-        bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A |
-                       BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA,
-                                             BGFX_STATE_BLEND_INV_SRC_ALPHA));
-        bgfx::setVertexBuffer(0, impl_->object_vbh);
-        bgfx::setIndexBuffer(impl_->object_ibh, 0, impl_->object_index_count);
         bgfx::submit(kView, impl_->program);
     }
     bgfx::frame();

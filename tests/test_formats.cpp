@@ -12,7 +12,6 @@
 #include "../src/formats/theater.h"
 #include "../src/formats/tmp.h"
 #include "../src/render/iso.h"
-#include "../src/render/terrain.h"
 
 namespace {
 
