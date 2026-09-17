@@ -80,6 +80,9 @@ through the install VFS by hash, so no theater/tile/palette paths are needed:
 ./build/gfx/src/ra2yr --map <map.mpr> --install "<retail dir>" --screenshot out.ppm
 ```
 
+`--theater NAME` forces the theater used for assets and `--fit` frames the whole
+map; both help with prototype maps that predate the retail theater art.
+
 ## Layout
 
 - `src/core/` - platform-free kernel: logging, version, utilities.

@@ -396,6 +396,16 @@ Reverse-chronological; evidence belongs in the owning docs.
   extension) matches the YR engine's `Theater` array. `--map` now needs only
   `--install <retail dir>`; verified on the same three maps with identical
   tile counts, so the manual theater/tiles/palette paths are gone.
+- Prototype map find: `maps02.mix` entry `_439FEA47` (the unnamed entry noted
+  earlier) is a Tiberian Sun-era GDI mission (`NextScenario=GDI2A.map`) with TS
+  `[Lighting]` and TS tile names (`mclif*`, `mdrod*`). Those graphics survive
+  in Red Alert 2 only as the desert theater, so it renders with
+  `--theater DESERT` (all 7,070 non-empty cells resolve). Preview at
+  `reference/proto-map-preview.png`.
+- Renderer fixes found while rendering it: the camera refactor left a stale
+  `+1` in the Y projection that shifted every view up by half a screen, and a
+  TMP cell with no image data produced an empty atlas slot that crashed the
+  builder. Both fixed; `--fit` and `--theater` added.
 
 ---
 

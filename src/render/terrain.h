@@ -49,10 +49,13 @@ TerrainAtlas build_grid_terrain(const std::vector<std::uint8_t>& tile_rgba, int 
 
 // Build terrain from a parsed map, resolving the theater control file, tiles,
 // and palette through the install VFS. `palette_override` is an optional loose
-// palette path for debugging.
+// palette path, and `theater_override` forces a theater for asset lookup (used
+// for prototype maps whose tile ids come from an older theater, such as the
+// Tiberian Sun art that Red Alert 2 shipped as its desert theater).
 std::optional<TerrainAtlas> build_map_terrain(const formats::MapFile& map,
                                               vfs::Vfs& vfs,
                                               const std::string& palette_override = {},
+                                              const std::string& theater_override = {},
                                               std::string* error = nullptr);
 
 }  // namespace ra2yr::render

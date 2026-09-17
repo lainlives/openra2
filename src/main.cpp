@@ -48,6 +48,8 @@ void print_usage() {
                  "  --grid COLSxROWS      grid size for --terrain (default 16x16)\n"
                  "  --map FILE            render a .map/.mpr/.yrm map\n"
                  "  --install DIR         retail install directory for asset lookup\n"
+                 "  --theater NAME        force the theater used for --map assets\n"
+                 "  --fit                 fit the whole map in the window\n"
                  "  --palette FILE        optional palette override for --map\n"
                  "  --screenshot FILE.ppm capture a frame and exit\n"
                  "  --help                show this message\n",
@@ -177,7 +179,7 @@ int extract_mix(const std::string& path, const std::string& dir,
 
 #if defined(RA2YR_PLATFORM_SDL) && defined(RA2YR_RENDER_BGFX)
 int run_viewer(const ra2yr::render::TerrainAtlas& atlas, const std::string& title,
-               const std::string& screenshot) {
+               const std::string& screenshot, bool fit) {
     auto platform = ra2yr::platform::make_sdl_platform();
     if (!platform) {
         ra2yr::log_error("SDL3 unavailable");
@@ -211,8 +213,18 @@ int run_viewer(const ra2yr::render::TerrainAtlas& atlas, const std::string& titl
     float camera_x = static_cast<float>(atlas.min_x + atlas.max_x) * 0.5f;
     float camera_y = static_cast<float>(atlas.min_y + atlas.max_y) * 0.5f;
     float zoom = 1.0f;
+    if (fit && atlas.max_x > atlas.min_x && atlas.max_y > atlas.min_y) {
+        const float world_w = static_cast<float>(atlas.max_x - atlas.min_x);
+        const float world_h = static_cast<float>(atlas.max_y - atlas.min_y);
+        zoom = std::min(static_cast<float>(window->width()) / world_w,
+                        static_cast<float>(window->height()) / world_h) *
+               0.95f;
+        zoom = std::clamp(zoom, 0.05f, 4.0f);
+    }
     ra2yr::log_info(title, ": ", atlas.tiles.size(), " tiles, atlas ", atlas.atlas_width,
                     "x", atlas.atlas_height, ", renderer ", renderer.backend());
+    ra2yr::log_debug("view: world x[", atlas.min_x, "..", atlas.max_x, "] y[",
+                     atlas.min_y, "..", atlas.max_y, "] zoom ", zoom);
 
     int frames = 0;
     const bool want_shot = !screenshot.empty();
@@ -263,7 +275,7 @@ int run_viewer(const ra2yr::render::TerrainAtlas& atlas, const std::string& titl
 #endif
 
 int run_terrain(const std::string& tmp_path, const std::string& pal_path, int cols, int rows,
-                const std::string& screenshot) {
+                const std::string& screenshot, bool fit) {
     std::ifstream tmp_in(tmp_path, std::ios::binary);
     std::ifstream pal_in(pal_path, std::ios::binary);
     if (!tmp_in || !pal_in) {
@@ -292,16 +304,18 @@ int run_terrain(const std::string& tmp_path, const std::string& pal_path, int co
         tmp->to_rgba(tmp->tile(0), *palette), static_cast<int>(tmp->tile_width()),
         static_cast<int>(tmp->tile_height()), cols, rows);
 #if defined(RA2YR_PLATFORM_SDL) && defined(RA2YR_RENDER_BGFX)
-    return run_viewer(atlas, "ra2yr terrain", screenshot);
+    return run_viewer(atlas, "ra2yr terrain", screenshot, fit);
 #else
     static_cast<void>(screenshot);
+    static_cast<void>(fit);
     ra2yr::log_error("terrain rendering requires RA2YR_ENABLE_SDL3 and RA2YR_ENABLE_BGFX");
     return 1;
 #endif
 }
 
 int run_map(const std::string& map_path, const std::string& install_dir,
-            const std::string& palette_override, const std::string& screenshot) {
+            const std::string& palette_override, const std::string& theater_override,
+            const std::string& screenshot, bool fit) {
     std::ifstream map_in(map_path, std::ios::binary);
     if (!map_in) {
         ra2yr::log_error("cannot read ", map_path);
@@ -335,8 +349,8 @@ int run_map(const std::string& map_path, const std::string& install_dir,
         return 1;
     }
 
-    auto atlas =
-        ra2yr::render::build_map_terrain(*map, *vfs, palette_override, &error);
+    auto atlas = ra2yr::render::build_map_terrain(*map, *vfs, palette_override,
+                                                  theater_override, &error);
     if (!atlas) {
         ra2yr::log_error("terrain: ", error);
         return 1;
@@ -344,9 +358,10 @@ int run_map(const std::string& map_path, const std::string& install_dir,
     ra2yr::log_info("map ", map_path, ": theater ", map->theater(), ", ", map->width(), "x",
                     map->height(), ", ", map->cells().size(), " cells");
 #if defined(RA2YR_PLATFORM_SDL) && defined(RA2YR_RENDER_BGFX)
-    return run_viewer(*atlas, "ra2yr map", screenshot);
+    return run_viewer(*atlas, "ra2yr map", screenshot, fit);
 #else
     static_cast<void>(screenshot);
+    static_cast<void>(fit);
     ra2yr::log_error("map rendering requires RA2YR_ENABLE_SDL3 and RA2YR_ENABLE_BGFX");
     return 1;
 #endif
@@ -363,7 +378,9 @@ int main(int argc, char** argv) {
     std::string pal_file;
     std::string map_file;
     std::string install_dir;
+    std::string theater_override;
     std::string screenshot;
+    bool fit = false;
     int grid_cols = 16;
     int grid_rows = 16;
     enum class Mode { Game, List, Tree, Extract, Terrain, Map } mode = Mode::Game;
@@ -473,6 +490,14 @@ int main(int argc, char** argv) {
             install_dir = argv[++i];
             continue;
         }
+        if (std::strcmp(argv[i], "--theater") == 0) {
+            if (i + 1 >= argc) {
+                std::fprintf(stderr, "--theater requires a name\n");
+                return 2;
+            }
+            theater_override = argv[++i];
+            continue;
+        }
         if (std::strcmp(argv[i], "--palette") == 0) {
             if (i + 1 >= argc) {
                 std::fprintf(stderr, "--palette requires a file\n");
@@ -492,6 +517,10 @@ int main(int argc, char** argv) {
                 std::fprintf(stderr, "invalid grid: %s\n", value.c_str());
                 return 2;
             }
+            continue;
+        }
+        if (std::strcmp(argv[i], "--fit") == 0) {
+            fit = true;
             continue;
         }
         if (std::strcmp(argv[i], "--screenshot") == 0) {
@@ -530,10 +559,10 @@ int main(int argc, char** argv) {
             ra2yr::log_error("--map needs --install DIR");
             return 2;
         }
-        return run_map(map_file, install_dir, pal_file, screenshot);
+        return run_map(map_file, install_dir, pal_file, theater_override, screenshot, fit);
     }
     if (mode == Mode::Terrain) {
-        return run_terrain(tmp_file, pal_file, grid_cols, grid_rows, screenshot);
+        return run_terrain(tmp_file, pal_file, grid_cols, grid_rows, screenshot, fit);
     }
     if (mode == Mode::List) {
         return list_mix(mix_file, names_ptr);

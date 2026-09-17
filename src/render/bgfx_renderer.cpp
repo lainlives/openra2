@@ -406,7 +406,7 @@ void BgfxRenderer::render() {
         proj[5] = -2.0f * zoom / height;
         proj[10] = 1.0f;
         proj[12] = -2.0f * zoom * impl_->camera_x / width;
-        proj[13] = 2.0f * zoom * impl_->camera_y / height + 1.0f;
+        proj[13] = 2.0f * zoom * impl_->camera_y / height;
         proj[15] = 1.0f;
 
         bgfx::setUniform(impl_->u_ortho, proj);

@@ -34,6 +34,11 @@ void log_info(Args&&... args) {
 }
 
 template <typename... Args>
+void log_debug(Args&&... args) {
+    log(LogLevel::Debug, std::forward<Args>(args)...);
+}
+
+template <typename... Args>
 void log_warn(Args&&... args) {
     log(LogLevel::Warn, std::forward<Args>(args)...);
 }

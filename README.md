@@ -64,7 +64,9 @@ through the same hash-based VFS the game uses:
     --screenshot map.ppm
 ```
 
-`--palette <file.pal>` overrides the theater palette for debugging.
+`--palette <file.pal>` overrides the theater palette and `--theater NAME` forces
+the theater used for asset lookup (both useful for prototype maps whose tile ids
+come from an older theater). `--fit` frames the whole map in the window.
 
 Drag with the left mouse button to pan and use the wheel to zoom; Escape
 closes the window. `.mmx` and `.yro` maps are MIX archives containing a `.map`

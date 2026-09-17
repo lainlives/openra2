@@ -82,11 +82,14 @@ TerrainAtlas build_grid_terrain(const std::vector<std::uint8_t>& tile_rgba, int 
 std::optional<TerrainAtlas> build_map_terrain(const formats::MapFile& map,
                                               vfs::Vfs& vfs,
                                               const std::string& palette_override,
+                                              const std::string& theater_override,
                                               std::string* error) {
-    const formats::TheaterInfo* info = formats::theater_info(map.theater());
+    const std::string theater_name =
+        theater_override.empty() ? map.theater() : theater_override;
+    const formats::TheaterInfo* info = formats::theater_info(theater_name);
     if (info == nullptr) {
         if (error != nullptr) {
-            *error = "unknown theater: " + map.theater();
+            *error = "unknown theater: " + theater_name;
         }
         return std::nullopt;
     }
@@ -181,9 +184,31 @@ std::optional<TerrainAtlas> build_map_terrain(const formats::MapFile& map,
             if (!parsed || parsed->tile_count() == 0) {
                 continue;
             }
+            // Some multi-cell TMPs leave cells empty; pick a cell that has an
+            // image, preferring the map's sub-tile.
+            int chosen = -1;
+            if (cell.sub_tile < parsed->tile_count() &&
+                !parsed->tile(cell.sub_tile).image.empty()) {
+                chosen = cell.sub_tile;
+            } else {
+                for (std::size_t c = 0; c < parsed->tile_count(); ++c) {
+                    if (!parsed->tile(c).image.empty()) {
+                        chosen = static_cast<int>(c);
+                        break;
+                    }
+                }
+            }
+            if (chosen < 0) {
+                continue;
+            }
+            if (tile_w != 0 &&
+                (static_cast<int>(parsed->tile_width()) != tile_w ||
+                 static_cast<int>(parsed->tile_height()) != tile_h)) {
+                continue;
+            }
             tmp = std::move(*parsed);
+            sub_tile = chosen;
             loaded = true;
-            sub_tile = cell.sub_tile < tmp.tile_count() ? cell.sub_tile : 0;
             break;
         }
         if (!loaded) {
@@ -197,6 +222,12 @@ std::optional<TerrainAtlas> build_map_terrain(const formats::MapFile& map,
         }
         Slot slot;
         slot.rgba = tmp.to_rgba(tmp.tile(static_cast<std::size_t>(sub_tile)), palette);
+        if (slot.rgba.size() <
+            static_cast<std::size_t>(tile_w) * tile_h * 4) {
+            ++missing;
+            slot_for_tile[cell.tile] = -1;
+            continue;
+        }
         slot_for_tile[cell.tile] = static_cast<int>(slots.size());
         slots.push_back(std::move(slot));
     }
