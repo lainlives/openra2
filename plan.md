@@ -288,6 +288,21 @@ Every claim in a PR must name which layer proves it. No proprietary asset or ori
 
 ---
 
+## Open rendering questions
+
+- **Map brightness.** Rendered maps look slightly dark. The engine currently
+  ignores the map's `[Lighting]` section; `all01t.map` has `Ambient=1.0` and
+  `Red=Green=Blue=1.0`, so ignoring lighting should not darken it. Strong lead:
+  the game's `[Video]` settings carry a brightness/gamma pair (`ra2md.ini` has
+  `Color=1`, `ColorEx=-2`) that the options slider edits and the renderer
+  applies when blitting; we do not apply it. Confirm what the engine does with
+  `Color`/`ColorEx` (decompile the blit path) before changing anything.
+- Foundation-aware sprite anchoring and depth-interleaving of objects with
+  terrain.
+- Whether NewTheater buildings should switch on the theater letter (the YR
+  engine's `Theater` table has a `Letter` field) rather than using the base
+  image name.
+
 ## 9. Major risks
 
 | Risk | Mitigation |
