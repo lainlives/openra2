@@ -68,6 +68,13 @@ through the same hash-based VFS the game uses:
 the theater used for asset lookup (both useful for prototype maps whose tile ids
 come from an older theater). `--fit` frames the whole map in the window.
 
+Sprite sheets decode without a renderer; transparent pixels are written as
+magenta:
+
+```
+./build/default/src/ra2yr --shp-dump <sprite.shp> <palette.pal> out.ppm
+```
+
 Drag with the left mouse button to pan and use the wheel to zoom; Escape
 closes the window. `.mmx` and `.yro` maps are MIX archives containing a `.map`
 and a `.pkt`; the engine detects and unwraps them automatically, and the

@@ -406,6 +406,14 @@ Reverse-chronological; evidence belongs in the owning docs.
   `+1` in the Y projection that shifted every view up by half a screen, and a
   TMP cell with no image data produced an empty atlas slot that crashed the
   builder. Both fixed; `--fit` and `--theater` added.
+- SHP decoder (`src/formats/shp`): TS/RA2 SHP with compression types 1 (raw),
+  2 (counted rows) and 3 (RLE-Zero), cropped frames placed into the full frame,
+  palette index 0 transparent, plus `--shp-dump` to write a frame sheet without
+  a renderer. Verified against the recovered `WAITCYLO.SHP`/`WAITCYLO.PAL`
+  (247x32, 22-frame pulse). Unnamed-entry catalogue started in
+  `docs/found-files.md`: the maps02 prototype map, WAITCYLO, two unnamed
+  `multimd` maps, a `multimd` light-definition INI fragment, and a `wdt`
+  palette.
 
 ---
 

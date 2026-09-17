@@ -17,6 +17,7 @@
 #include "formats/ini.h"
 #include "formats/map.h"
 #include "formats/palette.h"
+#include "formats/shp.h"
 #include "formats/theater.h"
 #include "formats/tmp.h"
 #include "platform/platform.h"
@@ -46,6 +47,7 @@ void print_usage() {
                  "  --mix-extract FILE DIR  recursively extract every file\n"
                  "  --terrain TMP PAL     render an isometric grid of a TMP tile\n"
                  "  --grid COLSxROWS      grid size for --terrain (default 16x16)\n"
+                 "  --shp-dump FILE PAL OUT  write all SHP frames as a PPM sheet\n"
                  "  --map FILE            render a .map/.mpr/.yrm map\n"
                  "  --install DIR         retail install directory for asset lookup\n"
                  "  --theater NAME        force the theater used for --map assets\n"
@@ -274,6 +276,72 @@ int run_viewer(const ra2yr::render::TerrainAtlas& atlas, const std::string& titl
 }
 #endif
 
+int dump_shp(const std::string& shp_path, const std::string& pal_path,
+             const std::string& out_path) {
+    std::ifstream shp_in(shp_path, std::ios::binary);
+    std::ifstream pal_in(pal_path, std::ios::binary);
+    if (!shp_in || !pal_in) {
+        ra2yr::log_error("cannot read ", shp_path, " or ", pal_path);
+        return 1;
+    }
+    std::vector<std::uint8_t> shp_bytes((std::istreambuf_iterator<char>(shp_in)), {});
+    std::vector<std::uint8_t> pal_bytes((std::istreambuf_iterator<char>(pal_in)), {});
+
+    std::string error;
+    auto shp = ra2yr::formats::ShpFile::from_bytes(shp_bytes, &error);
+    if (!shp) {
+        ra2yr::log_error("SHP: ", error);
+        return 1;
+    }
+    auto palette = ra2yr::formats::Palette::from_bytes(pal_bytes, &error);
+    if (!palette) {
+        ra2yr::log_error("palette: ", error);
+        return 1;
+    }
+
+    const int frame_w = shp->width();
+    const int frame_h = shp->height();
+    const int per_row = 8;
+    const int rows = static_cast<int>((shp->frame_count() + per_row - 1) / per_row);
+    const int sheet_w = frame_w * per_row;
+    const int sheet_h = frame_h * rows;
+    std::vector<std::uint8_t> sheet(
+        static_cast<std::size_t>(sheet_w) * sheet_h * 3, 0);
+    for (std::size_t i = 0; i < shp->frame_count(); ++i) {
+        const auto rgba = shp->to_rgba(shp->frame(i), *palette);
+        const int ox = static_cast<int>(i % per_row) * frame_w;
+        const int oy = static_cast<int>(i / per_row) * frame_h;
+        for (int y = 0; y < frame_h; ++y) {
+            for (int x = 0; x < frame_w; ++x) {
+                const std::uint8_t* src =
+                    rgba.data() + (static_cast<std::size_t>(y) * frame_w + x) * 4;
+                std::uint8_t* dst = sheet.data() +
+                                    (static_cast<std::size_t>(oy + y) * sheet_w + ox + x) * 3;
+                if (src[3] != 0) {
+                    dst[0] = src[0];
+                    dst[1] = src[1];
+                    dst[2] = src[2];
+                } else {
+                    dst[0] = 255;
+                    dst[1] = 0;
+                    dst[2] = 255;
+                }
+            }
+        }
+    }
+    FILE* out = std::fopen(out_path.c_str(), "wb");
+    if (out == nullptr) {
+        ra2yr::log_error("cannot write ", out_path);
+        return 1;
+    }
+    std::fprintf(out, "P6\n%d %d\n255\n", sheet_w, sheet_h);
+    std::fwrite(sheet.data(), 1, sheet.size(), out);
+    std::fclose(out);
+    ra2yr::log_info("shp ", shp_path, ": ", shp->width(), "x", shp->height(), ", ",
+                    shp->frame_count(), " frames -> ", out_path);
+    return 0;
+}
+
 int run_terrain(const std::string& tmp_path, const std::string& pal_path, int cols, int rows,
                 const std::string& screenshot, bool fit) {
     std::ifstream tmp_in(tmp_path, std::ios::binary);
@@ -379,11 +447,13 @@ int main(int argc, char** argv) {
     std::string map_file;
     std::string install_dir;
     std::string theater_override;
+    std::string shp_file;
+    std::string shp_out;
     std::string screenshot;
     bool fit = false;
     int grid_cols = 16;
     int grid_rows = 16;
-    enum class Mode { Game, List, Tree, Extract, Terrain, Map } mode = Mode::Game;
+    enum class Mode { Game, List, Tree, Extract, Terrain, Map, Shp } mode = Mode::Game;
 
     // Development builds are verbose by default; release builds stay quiet
     // unless asked otherwise.
@@ -482,6 +552,17 @@ int main(int argc, char** argv) {
             mode = Mode::Map;
             continue;
         }
+        if (std::strcmp(argv[i], "--shp-dump") == 0) {
+            if (i + 3 >= argc) {
+                std::fprintf(stderr, "--shp-dump requires a SHP, a palette, and an output\n");
+                return 2;
+            }
+            shp_file = argv[++i];
+            pal_file = argv[++i];
+            shp_out = argv[++i];
+            mode = Mode::Shp;
+            continue;
+        }
         if (std::strcmp(argv[i], "--install") == 0) {
             if (i + 1 >= argc) {
                 std::fprintf(stderr, "--install requires a directory\n");
@@ -554,6 +635,9 @@ int main(int argc, char** argv) {
         names_ptr = &names;
     }
 
+    if (mode == Mode::Shp) {
+        return dump_shp(shp_file, pal_file, shp_out);
+    }
     if (mode == Mode::Map) {
         if (install_dir.empty()) {
             ra2yr::log_error("--map needs --install DIR");

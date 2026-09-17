@@ -83,6 +83,12 @@ through the install VFS by hash, so no theater/tile/palette paths are needed:
 `--theater NAME` forces the theater used for assets and `--fit` frames the whole
 map; both help with prototype maps that predate the retail theater art.
 
+Dump any SHP to a frame sheet without a renderer (transparency is magenta):
+
+```
+./build/default/src/ra2yr --shp-dump <sprite.shp> <palette.pal> out.ppm
+```
+
 ## Layout
 
 - `src/core/` - platform-free kernel: logging, version, utilities.

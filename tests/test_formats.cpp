@@ -8,6 +8,7 @@
 #include "../src/formats/ini.h"
 #include "../src/formats/map.h"
 #include "../src/formats/palette.h"
+#include "../src/formats/shp.h"
 #include "../src/formats/theater.h"
 #include "../src/formats/tmp.h"
 #include "../src/render/iso.h"
@@ -253,6 +254,82 @@ void test_map_entries() {
     CHECK(filtered.size() == 1);
 }
 
+void test_shp() {
+    const auto u16 = [](std::vector<std::uint8_t>& out, std::uint16_t v) {
+        out.push_back(static_cast<std::uint8_t>(v & 0xFF));
+        out.push_back(static_cast<std::uint8_t>(v >> 8));
+    };
+    const auto u32 = [](std::vector<std::uint8_t>& out, std::uint32_t v) {
+        for (int i = 0; i < 4; ++i) {
+            out.push_back(static_cast<std::uint8_t>((v >> (8 * i)) & 0xFF));
+        }
+    };
+
+    // Two 4x2 frames: one raw, one RLE-Zero.
+    std::vector<std::uint8_t> shp;
+    u16(shp, 0);
+    u16(shp, 4);
+    u16(shp, 2);
+    u16(shp, 2);
+    const std::uint32_t raw_offset = 8 + 2 * 24;
+    const std::vector<std::uint8_t> raw = {5, 6, 7, 8, 9, 10, 11, 12};
+    // Frame 0: raw.
+    u16(shp, 0);
+    u16(shp, 0);
+    u16(shp, 4);
+    u16(shp, 2);
+    shp.push_back(1);  // compression
+    shp.push_back(0);
+    u16(shp, 0);
+    shp.insert(shp.end(), {1, 2, 3, 0});  // radar colour
+    u32(shp, 0);                          // reserved
+    u32(shp, raw_offset);
+    // Frame 1: RLE-Zero. Row 0 = 1,2,0,0 ; row 1 = 0,0,3,4
+    const std::vector<std::uint8_t> rle = {6, 0, 1, 2, 0, 2, 6, 0, 0, 2, 3, 4};
+    u16(shp, 0);
+    u16(shp, 0);
+    u16(shp, 4);
+    u16(shp, 2);
+    shp.push_back(3);  // compression
+    shp.push_back(0);
+    u16(shp, 0);
+    shp.insert(shp.end(), {0, 0, 0, 0});
+    u32(shp, 0);
+    u32(shp, raw_offset + static_cast<std::uint32_t>(raw.size()));
+    shp.insert(shp.end(), raw.begin(), raw.end());
+    shp.insert(shp.end(), rle.begin(), rle.end());
+
+    std::string error;
+    auto parsed = ra2yr::formats::ShpFile::from_bytes(shp, &error);
+    CHECK(parsed.has_value());
+    if (!parsed) {
+        std::cerr << "shp parse failed: " << error << "\n";
+        return;
+    }
+    CHECK(parsed->width() == 4 && parsed->height() == 2);
+    CHECK(parsed->frame_count() == 2);
+    CHECK(parsed->frame(0).pixels == raw);
+    CHECK(parsed->frame(0).radar_color[1] == 2);
+    const std::vector<std::uint8_t> expected = {1, 2, 0, 0, 0, 0, 3, 4};
+    CHECK(parsed->frame(1).pixels == expected);
+
+    std::vector<std::uint8_t> pal_bytes(ra2yr::formats::Palette::kByteSize, 0);
+    pal_bytes[5 * 3 + 0] = 200;
+    auto palette = ra2yr::formats::Palette::from_bytes(pal_bytes, &error);
+    CHECK(palette.has_value());
+    if (palette) {
+        const auto rgba = parsed->to_rgba(parsed->frame(0), *palette);
+        CHECK(rgba.size() == 4 * 2 * 4);
+        CHECK(rgba[5 * 4 + 3] == 255);  // index 5 opaque
+    }
+    // Frame 1 begins with index 1 (opaque) and index 0 (transparent).
+    if (palette) {
+        const auto rgba = parsed->to_rgba(parsed->frame(1), *palette);
+        CHECK(rgba[0] == 0 && rgba[3] == 255);  // index 1 -> palette black, opaque
+        CHECK(rgba[2 * 4 + 3] == 0);            // index 0 -> transparent
+    }
+}
+
 }  // namespace
 
 int main() {
@@ -263,6 +340,7 @@ int main() {
     test_ini();
     test_theater();
     test_map_entries();
+    test_shp();
 
     if (g_failures != 0) {
         std::cerr << g_failures << " check(s) failed\n";
