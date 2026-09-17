@@ -290,13 +290,14 @@ Every claim in a PR must name which layer proves it. No proprietary asset or ori
 
 ## Open rendering questions
 
-- **Map brightness.** Rendered maps look slightly dark. The engine currently
-  ignores the map's `[Lighting]` section; `all01t.map` has `Ambient=1.0` and
-  `Red=Green=Blue=1.0`, so ignoring lighting should not darken it. Strong lead:
-  the game's `[Video]` settings carry a brightness/gamma pair (`ra2md.ini` has
-  `Color=1`, `ColorEx=-2`) that the options slider edits and the renderer
-  applies when blitting; we do not apply it. Confirm what the engine does with
-  `Color`/`ColorEx` (decompile the blit path) before changing anything.
+- **Map brightness (resolved).** Maps looked about 4x dark because Westwood VGA
+  `.pal` files store **6-bit** DAC values (0-63) and `Palette::from_bytes` used
+  them as 8-bit. All 128 retail palettes max out at 63. The loader now expands
+  6-bit palettes to 8-bit by bit replication and passes through palettes that
+  already contain values above 63. Measured before/after average luminance on
+  `all01t.map`: 27.9 -> 112.9 (4.05x). Unrelated to `[Lighting]` (map ambient
+  is 1.0) and to `[MultiPlayer] Color`/`ColorEx`, which are the player's
+  side/colour selection, not gamma.
 - Foundation-aware sprite anchoring and depth-interleaving of objects with
   terrain.
 - Whether NewTheater buildings should switch on the theater letter (the YR
@@ -432,6 +433,9 @@ Reverse-chronological; evidence belongs in the owning docs.
   as-is), no foundation-aware anchoring (sprites are centred on the cell and
   stood on its bottom edge), no animation, no house remap, and sprites draw
   after all terrain rather than depth-interleaving with it.
+- Palette fix: Westwood `.pal` files are 6-bit (all retail palettes max at 63);
+  the loader now expands to 8-bit. Rendered maps brightened 4.05x (luminance
+  27.9 -> 112.9 on `all01t`). Unit test covers both 6-bit and 8-bit palettes.
 - SHP decoder (`src/formats/shp`): TS/RA2 SHP with compression types 1 (raw),
   2 (counted rows) and 3 (RLE-Zero), cropped frames placed into the full frame,
   palette index 0 transparent, plus `--shp-dump` to write a frame sheet without

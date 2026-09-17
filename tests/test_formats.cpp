@@ -43,10 +43,23 @@ void test_palette() {
         return;
     }
     const auto transparent = palette->color(0);
-    CHECK(transparent.r == 10 && transparent.g == 20 && transparent.b == 30);
+    // 6-bit DAC values are expanded to 8-bit by bit replication.
+    CHECK(transparent.r == 40 && transparent.g == 81 && transparent.b == 121);
     CHECK(transparent.a == 0);
     const auto five = palette->color(5);
-    CHECK(five.r == 40 && five.g == 50 && five.b == 60 && five.a == 255);
+    CHECK(five.r == 162 && five.g == 203 && five.b == 243 && five.a == 255);
+
+    // A palette with 8-bit values passes through unchanged.
+    std::vector<std::uint8_t> eight_bit(ra2yr::formats::Palette::kByteSize, 0);
+    eight_bit[3 * 3 + 0] = 200;
+    eight_bit[3 * 3 + 1] = 128;
+    eight_bit[3 * 3 + 2] = 64;
+    auto wide = ra2yr::formats::Palette::from_bytes(eight_bit, &error);
+    CHECK(wide.has_value());
+    if (wide) {
+        const auto color = wide->color(3);
+        CHECK(color.r == 200 && color.g == 128 && color.b == 64);
+    }
 }
 
 void test_iso_projection() {
