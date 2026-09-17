@@ -433,6 +433,11 @@ Reverse-chronological; evidence belongs in the owning docs.
   as-is), no foundation-aware anchoring (sprites are centred on the cell and
   stood on its bottom edge), no animation, no house remap, and sprites draw
   after all terrain rather than depth-interleaving with it.
+- Test fixtures adopted: synthesized CC0 SHPs (raw + RLE-Zero), maps
+  (`[Lighting]`/trigger map, dense map in plain and `.yro` form, near-limit
+  `.mpr`), and a CSF, under `tests/data/` with `tests/test_data.cpp`. The new
+  test asserts each fixture parses and that `.yro` expands to exactly the plain
+  map. A generator for VXL/HVA/PCX/CPS is included for when those decoders land.
 - Palette fix: Westwood `.pal` files are 6-bit (all retail palettes max at 63);
   the loader now expands to 8-bit. Rendered maps brightened 4.05x (luminance
   27.9 -> 112.9 on `all01t`). Unit test covers both 6-bit and 8-bit palettes.

@@ -18,6 +18,23 @@ Some formats we can generate ourselves with our own tooling (`scripts/mixer.py`
 writes MIX; the engine writes PPM). Those need no external source and are the
 preferred test vectors where possible.
 
+## Current fixtures
+
+`tests/data/` already holds synthesized, CC0 fixtures and is exercised by
+`tests/test_data.cpp`:
+
+- SHP: raw (type 1) and RLE-Zero (type 3), 1/4/8 frames. Type 2 is still
+  wanted.
+- Maps: an 80x80 map with triggers and `[Lighting]`; a dense 100x100 map in
+  plain and `.yro` form (the test asserts they expand identically); a large
+  near-limit `.mpr`.
+- Strings: `test.csf` (version 3, two entries) with its expected contents.
+
+`tests/data/generate/generate-testing-data.py` generates VXL/HVA/PCX/CPS
+fixtures; those stay uncommitted until the matching decoders exist. The goal is
+to generate fixtures from scripts and keep the directory generated rather than
+checked in.
+
 ## Formats and cases
 
 | Format | Extension | Cases wanted | Can we author it? |

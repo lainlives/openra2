@@ -99,7 +99,8 @@ Dump any SHP to a frame sheet without a renderer (transparency is magenta):
 - `src/vfs/` - archives, loose-file override, INI, CSF.
 - `src/` game simulation, rendering, audio, UI - to be added per `plan.md`.
 - `scripts/` - asset and reverse-engineering tooling.
-- `tests/` - asset-free unit and integration tests.
+- `tests/` - asset-free unit and integration tests. `tests/data/` holds
+  synthesized CC0 fixtures (see `tests/data/README.md`).
 
 ## Rules
 
