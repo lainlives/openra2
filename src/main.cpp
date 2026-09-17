@@ -22,6 +22,7 @@
 #include "formats/tmp.h"
 #include "platform/platform.h"
 #include "render/iso.h"
+#include "render/sprites.h"
 #include "render/terrain.h"
 #include "vfs/mix.h"
 #include "vfs/vfs.h"
@@ -180,7 +181,8 @@ int extract_mix(const std::string& path, const std::string& dir,
 }
 
 #if defined(RA2YR_PLATFORM_SDL) && defined(RA2YR_RENDER_BGFX)
-int run_viewer(const ra2yr::render::TerrainAtlas& atlas, const std::string& title,
+int run_viewer(const ra2yr::render::TerrainAtlas& atlas,
+               const ra2yr::render::ObjectAtlas* objects, const std::string& title,
                const std::string& screenshot, bool fit) {
     auto platform = ra2yr::platform::make_sdl_platform();
     if (!platform) {
@@ -211,6 +213,12 @@ int run_viewer(const ra2yr::render::TerrainAtlas& atlas, const std::string& titl
         return 1;
     }
     renderer.set_tiles(atlas.tiles, atlas.tile_width, atlas.tile_height);
+    if (objects != nullptr && !objects->instances.empty()) {
+        if (renderer.set_object_atlas(objects->rgba, objects->width, objects->height,
+                                      &error)) {
+            renderer.set_objects(objects->instances);
+        }
+    }
 
     float camera_x = static_cast<float>(atlas.min_x + atlas.max_x) * 0.5f;
     float camera_y = static_cast<float>(atlas.min_y + atlas.max_y) * 0.5f;
@@ -372,7 +380,7 @@ int run_terrain(const std::string& tmp_path, const std::string& pal_path, int co
         tmp->to_rgba(tmp->tile(0), *palette), static_cast<int>(tmp->tile_width()),
         static_cast<int>(tmp->tile_height()), cols, rows);
 #if defined(RA2YR_PLATFORM_SDL) && defined(RA2YR_RENDER_BGFX)
-    return run_viewer(atlas, "ra2yr terrain", screenshot, fit);
+    return run_viewer(atlas, nullptr, "ra2yr terrain", screenshot, fit);
 #else
     static_cast<void>(screenshot);
     static_cast<void>(fit);
@@ -417,16 +425,30 @@ int run_map(const std::string& map_path, const std::string& install_dir,
         return 1;
     }
 
-    auto atlas = ra2yr::render::build_map_terrain(*map, *vfs, palette_override,
-                                                  theater_override, &error);
+    auto palette =
+        ra2yr::render::load_map_palette(*map, *vfs, palette_override, &error);
+    if (!palette) {
+        ra2yr::log_error("palette: ", error);
+        return 1;
+    }
+    auto atlas =
+        ra2yr::render::build_map_terrain(*map, *vfs, *palette, theater_override, &error);
     if (!atlas) {
         ra2yr::log_error("terrain: ", error);
         return 1;
     }
+    auto objects = ra2yr::render::build_map_objects(
+        *map, *vfs, *palette, atlas->tile_width, atlas->tile_height, &error);
+    if (objects) {
+        ra2yr::log_info("objects: ", objects->instances.size(), " sprites from ",
+                        objects->distinct_images, " images (", objects->missing,
+                        " missing)");
+    }
     ra2yr::log_info("map ", map_path, ": theater ", map->theater(), ", ", map->width(), "x",
                     map->height(), ", ", map->cells().size(), " cells");
 #if defined(RA2YR_PLATFORM_SDL) && defined(RA2YR_RENDER_BGFX)
-    return run_viewer(*atlas, "ra2yr map", screenshot, fit);
+    return run_viewer(*atlas, objects ? &*objects : nullptr, "ra2yr map", screenshot,
+                      fit);
 #else
     static_cast<void>(screenshot);
     static_cast<void>(fit);

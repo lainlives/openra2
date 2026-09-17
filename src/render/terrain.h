@@ -18,11 +18,14 @@
 
 namespace ra2yr::render {
 
-// One axis-aligned tile quad in world pixels, with a sub-rectangle of the
-// atlas and a painter-order key. The renderer sorts by `depth` ascending.
+// One axis-aligned quad in world pixels, with a sub-rectangle of an atlas and
+// a painter-order key. The renderer sorts by `depth` ascending. Terrain tiles
+// leave `width`/`height` at 0 to use the tile size; object sprites set them.
 struct TileInstance {
     float x = 0.0f;
     float y = 0.0f;
+    float width = 0.0f;
+    float height = 0.0f;
     float u0 = 0.0f;
     float v0 = 0.0f;
     float u1 = 1.0f;
@@ -47,14 +50,20 @@ struct TerrainAtlas {
 TerrainAtlas build_grid_terrain(const std::vector<std::uint8_t>& tile_rgba, int tile_width,
                                 int tile_height, int cols, int rows);
 
-// Build terrain from a parsed map, resolving the theater control file, tiles,
-// and palette through the install VFS. `palette_override` is an optional loose
-// palette path, and `theater_override` forces a theater for asset lookup (used
-// for prototype maps whose tile ids come from an older theater, such as the
-// Tiberian Sun art that Red Alert 2 shipped as its desert theater).
+// Load the theater palette for a map through the VFS, honouring an optional
+// loose override. Opens the palette and localization mixes.
+std::optional<formats::Palette> load_map_palette(const formats::MapFile& map,
+                                                 vfs::Vfs& vfs,
+                                                 const std::string& palette_override = {},
+                                                 std::string* error = nullptr);
+
+// Build terrain from a parsed map, resolving the theater control file and
+// tiles through the install VFS. `theater_override` forces a theater for asset
+// lookup (used for prototype maps whose tile ids come from an older theater,
+// such as the Tiberian Sun art that Red Alert 2 shipped as its desert theater).
 std::optional<TerrainAtlas> build_map_terrain(const formats::MapFile& map,
                                               vfs::Vfs& vfs,
-                                              const std::string& palette_override = {},
+                                              const formats::Palette& palette,
                                               const std::string& theater_override = {},
                                               std::string* error = nullptr);
 

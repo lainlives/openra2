@@ -71,6 +71,16 @@ it went unnoticed for 25 years.
   are magenta, which suggests index 0/1 is a mask colour for this asset.
 - Preview of all frames: `reference/waitcylo-preview.png`.
 
+## Two `multimd.mix` maps: name search result
+
+The names could not be recovered. We hashed roughly 103,000 candidate names
+(every file name in the retail install, the extracted archives, and the
+community name database, each tried with `.map`/`.mpr`/`.yrm`/`.mmx`/`.yro`
+and no extension) against both entry IDs with no match, and neither entry's
+size matches any named entry in the archive. They are either named something
+outside every list we have, or were embedded without a name by the tools that
+rebuilt the archive.
+
 ## Open questions
 
 - What are the two `multimd.mix` maps named, and do they differ from the

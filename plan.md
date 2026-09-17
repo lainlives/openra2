@@ -406,6 +406,14 @@ Reverse-chronological; evidence belongs in the owning docs.
   `+1` in the Y projection that shifted every view up by half a screen, and a
   TMP cell with no image data produced an empty atlas slot that crashed the
   builder. Both fixed; `--fit` and `--theater` added.
+- Map object sprites, first pass (`src/render/sprites`): `[Structures]` entries
+  resolve through `art(md).ini` (Image, else the type name) to an SHP, frame 0
+  is packed into an object atlas and drawn as a second pass over the terrain.
+  Verified on `all01t.map`: 165 sprites from 48 images (25 placements missing).
+  Known limits: no NewTheater/theater-suffixed image fallback (those are the
+  misses), no foundation-aware anchoring (sprites are centred on the cell and
+  stood on its bottom edge), no animation, no house remap, and sprites draw
+  after all terrain rather than depth-interleaving with it.
 - SHP decoder (`src/formats/shp`): TS/RA2 SHP with compression types 1 (raw),
   2 (counted rows) and 3 (RLE-Zero), cropped frames placed into the full frame,
   palette index 0 transparent, plus `--shp-dump` to write a frame sheet without

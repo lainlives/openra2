@@ -47,6 +47,11 @@ public:
     // Replace the terrain geometry. Tiles share one size and the atlas.
     void set_tiles(std::vector<TileInstance> tiles, int tile_width, int tile_height);
 
+    // Object sprites: a second atlas drawn over the terrain, one draw call.
+    bool set_object_atlas(const std::vector<std::uint8_t>& rgba, int width, int height,
+                          std::string* error = nullptr);
+    void set_objects(std::vector<TileInstance> objects);
+
     // Camera centre in world pixels and zoom (1.0 = one world pixel per screen
     // pixel).
     void set_camera(float center_x, float center_y, float zoom);

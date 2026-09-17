@@ -105,6 +105,10 @@ std::optional<MapFile> MapFile::from_bytes(const std::vector<std::uint8_t>& data
         }
     }
 
+    if (const IniFile::Entries* structures = ini.section("structures")) {
+        map.structures_ = *structures;
+    }
+
     const IniFile::Entries* pack = ini.section("isomappack5");
     if (pack == nullptr) {
         return fail("map has no IsoMapPack5 section");

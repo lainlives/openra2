@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace ra2yr::formats {
@@ -35,6 +36,10 @@ public:
     static std::vector<MapCell> parse_iso_entries(const std::uint8_t* data,
                                                   std::size_t size);
 
+    using Entry = std::pair<std::string, std::string>;
+    using Section = std::vector<Entry>;
+
+    const Section& structures() const { return structures_; }
     const std::string& theater() const { return theater_; }
     int width() const { return width_; }
     int height() const { return height_; }
@@ -45,6 +50,7 @@ private:
     int width_ = 0;
     int height_ = 0;
     std::vector<MapCell> cells_;
+    Section structures_;
 };
 
 }  // namespace ra2yr::formats

@@ -25,14 +25,6 @@ std::string lowercase(std::string text) {
     return text;
 }
 
-std::vector<std::uint8_t> read_file(const std::filesystem::path& path) {
-    std::ifstream in(path, std::ios::binary);
-    if (!in) {
-        return {};
-    }
-    return std::vector<std::uint8_t>((std::istreambuf_iterator<char>(in)), {});
-}
-
 // Candidate TMP names for a tile: `baseNN.ext`, then the damaged variants
 // `baseNNa.ext` .. `baseNNg.ext`, all lowercase.
 std::vector<std::string> candidate_names(const std::string& base, int index,
@@ -79,9 +71,51 @@ TerrainAtlas build_grid_terrain(const std::vector<std::uint8_t>& tile_rgba, int 
     return atlas;
 }
 
+std::optional<formats::Palette> load_map_palette(const formats::MapFile& map,
+                                                 vfs::Vfs& vfs,
+                                                 const std::string& palette_override,
+                                                 std::string* error) {
+    const formats::TheaterInfo* info = formats::theater_info(map.theater());
+    if (info == nullptr) {
+        if (error != nullptr) {
+            *error = "unknown theater: " + map.theater();
+        }
+        return std::nullopt;
+    }
+    vfs.open_mix("cachemd.mix");
+    vfs.open_mix("cache.mix");
+    vfs.open_mix("localmd.mix");
+    vfs.open_mix("local.mix");
+
+    if (!palette_override.empty()) {
+        std::ifstream in(palette_override, std::ios::binary);
+        const std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(in)), {});
+        std::string palette_error;
+        if (auto parsed = formats::Palette::from_bytes(bytes, &palette_error)) {
+            return parsed;
+        }
+        if (error != nullptr) {
+            *error = "palette override: " + palette_error;
+        }
+        return std::nullopt;
+    }
+
+    const std::string name = lowercase(std::string(info->palette)) + ".pal";
+    if (auto bytes = vfs.read(name)) {
+        std::string palette_error;
+        if (auto parsed = formats::Palette::from_bytes(*bytes, &palette_error)) {
+            return parsed;
+        }
+    }
+    if (error != nullptr) {
+        *error = "cannot find theater palette " + name;
+    }
+    return std::nullopt;
+}
+
 std::optional<TerrainAtlas> build_map_terrain(const formats::MapFile& map,
                                               vfs::Vfs& vfs,
-                                              const std::string& palette_override,
+                                              const formats::Palette& palette,
                                               const std::string& theater_override,
                                               std::string* error) {
     const std::string theater_name =
@@ -94,8 +128,8 @@ std::optional<TerrainAtlas> build_map_terrain(const formats::MapFile& map,
         return std::nullopt;
     }
 
-    // Bring the theater tile mix, palettes, and localization mixes online, as
-    // the engine does during startup.
+    // Bring the theater tile mix and the localization mixes online, as the
+    // engine does during startup.
     vfs.open_mix(std::string(info->art) + ".mix");
     vfs.open_mix("localmd.mix");
     vfs.open_mix("local.mix");
@@ -124,33 +158,6 @@ std::optional<TerrainAtlas> build_map_terrain(const formats::MapFile& map,
     const std::string ini_text(ini_bytes.begin(), ini_bytes.end());
     const formats::Theater theater =
         formats::Theater::from_ini(formats::IniFile::parse(ini_text));
-
-    formats::Palette palette;
-    bool have_palette = false;
-    if (!palette_override.empty()) {
-        const std::vector<std::uint8_t> bytes = read_file(palette_override);
-        std::string palette_error;
-        if (auto parsed = formats::Palette::from_bytes(bytes, &palette_error)) {
-            palette = *parsed;
-            have_palette = true;
-        } else if (error != nullptr) {
-            *error = "palette override: " + palette_error;
-        }
-    }
-    if (!have_palette) {
-        const std::vector<std::uint8_t> bytes =
-            read_asset(lowercase(std::string(info->palette)) + ".pal");
-        std::string palette_error;
-        if (auto parsed = formats::Palette::from_bytes(bytes, &palette_error)) {
-            palette = *parsed;
-            have_palette = true;
-        } else if (error != nullptr) {
-            *error = "cannot find theater palette " + std::string(info->palette) + ".pal";
-        }
-    }
-    if (!have_palette) {
-        return std::nullopt;
-    }
 
     TerrainAtlas atlas;
     std::unordered_map<std::uint16_t, int> slot_for_tile;
@@ -222,8 +229,7 @@ std::optional<TerrainAtlas> build_map_terrain(const formats::MapFile& map,
         }
         Slot slot;
         slot.rgba = tmp.to_rgba(tmp.tile(static_cast<std::size_t>(sub_tile)), palette);
-        if (slot.rgba.size() <
-            static_cast<std::size_t>(tile_w) * tile_h * 4) {
+        if (slot.rgba.size() < static_cast<std::size_t>(tile_w) * tile_h * 4) {
             ++missing;
             slot_for_tile[cell.tile] = -1;
             continue;
@@ -234,7 +240,7 @@ std::optional<TerrainAtlas> build_map_terrain(const formats::MapFile& map,
 
     if (slots.empty() || tile_w == 0 || tile_h == 0) {
         if (error != nullptr) {
-            *error = "no theater tiles could be resolved for " + map.theater();
+            *error = "no theater tiles could be resolved for " + theater_name;
         }
         return std::nullopt;
     }
