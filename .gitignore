@@ -30,3 +30,9 @@ venv/
 
 # Generated
 compile_commands.json
+
+# Editor swap/state
+*.kate-swp
+*.kate-swp.*
+.*.swp
+*.swp
