@@ -392,7 +392,7 @@ Reverse-chronological; evidence belongs in the owning docs.
 - Map rendering (M3/M4 start): `src/formats/` gained a minimal INI reader,
   base64, an LZO1X decompressor ported from OpenTS, the map reader
   (`.map`/`.mpr`/`.yrm`: IsoMapPack5 -> base64 -> LZO1X blocks -> 11-byte
-  cells), and the theater tile-set reader. `src/render/terrain` packs the
+  cells), and the theater tile-set reader. `src/render/scene` packs the
   map's distinct tiles into one texture atlas and builds the instance list.
   Verified on Linux/Vulkan against `maps01/all01t.map` (URBAN): 6,336 cells,
   188 distinct tiles resolved 187/187 present on disk, 5,831 drawn, z up to 6,
@@ -431,7 +431,7 @@ Reverse-chronological; evidence belongs in the owning docs.
   top-left. Depth is `diagonal * 64 + layer`, terrain layer = z and object
   layer = 32. Verified on `all01t.map`: 5,831 tiles + 189 sprites = 6,020
   instances, one 4,080x1,078 atlas, 1 missing sprite (an absent file).
-- Map object sprites, first pass (`src/render/sprites`): `[Structures]` entries
+- Map object sprites, first pass (now in `src/render/scene`): `[Structures]` entries
   resolve through `art(md).ini` (Image, else the type name) to an SHP, frame 0
   is packed into an object atlas and drawn as a second pass over the terrain.
   Verified on `all01t.map`: 189 sprites from 50 images, 1 missing (a file not
