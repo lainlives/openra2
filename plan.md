@@ -409,9 +409,12 @@ Reverse-chronological; evidence belongs in the owning docs.
 - Map object sprites, first pass (`src/render/sprites`): `[Structures]` entries
   resolve through `art(md).ini` (Image, else the type name) to an SHP, frame 0
   is packed into an object atlas and drawn as a second pass over the terrain.
-  Verified on `all01t.map`: 165 sprites from 48 images (25 placements missing).
-  Known limits: no NewTheater/theater-suffixed image fallback (those are the
-  misses), no foundation-aware anchoring (sprites are centred on the cell and
+  Verified on `all01t.map`: 189 sprites from 50 images, 1 missing (a file not
+  present in retail). `Image=` now falls back from art(md).ini to rules(md).ini
+  (street lamps set it there) and the `*md` theater mixes are opened
+  (`snowmd.mix` holds some civilian buildings). Known limits: no actual
+  NewTheater per-theater letter substitution (the map's own theater art is used
+  as-is), no foundation-aware anchoring (sprites are centred on the cell and
   stood on its bottom edge), no animation, no house remap, and sprites draw
   after all terrain rather than depth-interleaving with it.
 - SHP decoder (`src/formats/shp`): TS/RA2 SHP with compression types 1 (raw),

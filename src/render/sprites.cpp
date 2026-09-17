@@ -81,9 +81,10 @@ std::optional<ObjectAtlas> build_map_objects(const formats::MapFile& map, vfs::V
                                              std::string* error) {
     // Bring the mixes that hold art definitions and building SHPs online.
     for (const char* mix : {"localmd.mix", "local.mix", "snow.mix", "isosnow.mix",
-                            "urban.mix", "isourb.mix", "temperat.mix", "isotemp.mix",
-                            "conquer.mix", "conqmd.mix", "generic.mix", "genermd.mix",
-                            "cache.mix", "cachemd.mix"}) {
+                            "snowmd.mix", "urban.mix", "isourb.mix", "urbann.mix",
+                            "temperat.mix", "isotemp.mix", "desert.mix", "isodes.mix",
+                            "lunar.mix", "isolun.mix", "conquer.mix", "conqmd.mix",
+                            "generic.mix", "genermd.mix", "cache.mix", "cachemd.mix"}) {
         vfs.open_mix(mix);
     }
 
@@ -107,6 +108,14 @@ std::optional<ObjectAtlas> build_map_objects(const formats::MapFile& map, vfs::V
     const formats::IniFile art =
         formats::IniFile::parse(std::string(art_bytes.begin(), art_bytes.end()));
 
+    // Some types (street lamps, for example) set Image= in rules rather than art.
+    std::vector<std::uint8_t> rules_bytes = read_asset("rulesmd.ini");
+    if (rules_bytes.empty()) {
+        rules_bytes = read_asset("rules.ini");
+    }
+    const formats::IniFile rules =
+        formats::IniFile::parse(std::string(rules_bytes.begin(), rules_bytes.end()));
+
     ObjectAtlas atlas;
     if (map.structures().empty()) {
         return atlas;
@@ -128,10 +137,12 @@ std::optional<ObjectAtlas> build_map_objects(const formats::MapFile& map, vfs::V
             continue;
         }
         std::string image = type;
-        if (const std::string* art_image = art.get(type, "image")) {
-            if (!art_image->empty()) {
-                image = *art_image;
-            }
+        const std::string* declared = art.get(type, "image");
+        if (declared == nullptr) {
+            declared = rules.get(type, "image");
+        }
+        if (declared != nullptr && !declared->empty()) {
+            image = *declared;
         }
         image = lowercase(image);
 
@@ -155,6 +166,7 @@ std::optional<ObjectAtlas> build_map_objects(const formats::MapFile& map, vfs::V
         }
         if (cached->second < 0) {
             ++atlas.missing;
+            log(LogLevel::Debug, "  missing image: ", image);
             continue;
         }
         placements.push_back(Placement{cached->second, x, y});

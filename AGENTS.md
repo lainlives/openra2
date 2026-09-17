@@ -10,7 +10,9 @@ the original behavior while running cleanly on modern Windows, Wine, and
 ## Required context
 
 - `plan.md` - the master plan, milestones, and decisions.
-- `docs/` - reverse-engineering notes and the living `docs/yr-delta.md`.
+- `docs/` - reverse-engineering notes, `docs/yr-delta.md` (engine
+  differences), `docs/found-files.md` (unidentified retail entries), and
+  `docs/test-assets.md` (needed CI fixtures).
 - `reference/` - **read-only evidence**. Never modify, and never commit it
   (it is git-ignored). It holds the retail install, OpenTS, YRpp/Phobos,
   decompiler output, and extracted data.
