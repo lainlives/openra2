@@ -440,6 +440,10 @@ Reverse-chronological; evidence belongs in the owning docs.
   (`snowmd.mix` holds some civilian buildings). Superseded by the unified map
   scene above; remaining limits are no NewTheater per-theater letter
   substitution, no animation, and no house remap.
+- Placement verified numerically: rendering `all01t` at native scale and aligning
+  against the CNCMaps output gives a 0.897 mask IoU (residual is missing
+  shadows/animations/overlays, not offset). Aligned comparison saved at
+  `reference/compare-all01t-blend.png` / `-side.png`. Added `--window WxH`.
 - Building placement verified against CNCMaps (retail-identical): full frame at
   `tile_iso_pixel - full_frame/2 + XDrawOffset/YDrawOffset`, foundation only for
   the depth footprint. The earlier half-tile subtraction and foundation

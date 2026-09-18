@@ -52,6 +52,7 @@ void print_usage() {
                  "  --install DIR         retail install directory for asset lookup\n"
                  "  --theater NAME        force the theater used for --map assets\n"
                  "  --fit                 fit the whole map in the window\n"
+                 "  --window WxH          window size (default 1280x800)\n"
                  "  --palette FILE        optional palette override for --map\n"
                  "  --screenshot FILE.ppm capture a frame and exit\n"
                  "  --help                show this message\n",
@@ -181,15 +182,15 @@ int extract_mix(const std::string& path, const std::string& dir,
 
 #if defined(RA2YR_PLATFORM_SDL) && defined(RA2YR_RENDER_BGFX)
 int run_viewer(const ra2yr::render::Scene& scene, const std::string& title,
-               const std::string& screenshot, bool fit) {
+               const std::string& screenshot, bool fit, int window_w, int window_h) {
     auto platform = ra2yr::platform::make_sdl_platform();
     if (!platform) {
         ra2yr::log_error("SDL3 unavailable");
         return 1;
     }
     ra2yr::platform::WindowDesc desc;
-    desc.width = 1280;
-    desc.height = 800;
+    desc.width = window_w;
+    desc.height = window_h;
     desc.title = title;
     desc.visible = true;
     auto window = platform->create_window(desc);
@@ -343,7 +344,7 @@ int dump_shp(const std::string& shp_path, const std::string& pal_path,
 }
 
 int run_terrain(const std::string& tmp_path, const std::string& pal_path, int cols, int rows,
-                const std::string& screenshot, bool fit) {
+                const std::string& screenshot, bool fit, int window_w, int window_h) {
     std::ifstream tmp_in(tmp_path, std::ios::binary);
     std::ifstream pal_in(pal_path, std::ios::binary);
     if (!tmp_in || !pal_in) {
@@ -372,10 +373,12 @@ int run_terrain(const std::string& tmp_path, const std::string& pal_path, int co
         tmp->to_rgba(tmp->tile(0), *palette), static_cast<int>(tmp->tile_width()),
         static_cast<int>(tmp->tile_height()), cols, rows);
 #if defined(RA2YR_PLATFORM_SDL) && defined(RA2YR_RENDER_BGFX)
-    return run_viewer(scene, "ra2yr terrain", screenshot, fit);
+    return run_viewer(scene, "ra2yr terrain", screenshot, fit, window_w, window_h);
 #else
     static_cast<void>(screenshot);
     static_cast<void>(fit);
+    static_cast<void>(window_w);
+    static_cast<void>(window_h);
     ra2yr::log_error("terrain rendering requires RA2YR_ENABLE_SDL3 and RA2YR_ENABLE_BGFX");
     return 1;
 #endif
@@ -383,7 +386,7 @@ int run_terrain(const std::string& tmp_path, const std::string& pal_path, int co
 
 int run_map(const std::string& map_path, const std::string& install_dir,
             const std::string& palette_override, const std::string& theater_override,
-            const std::string& screenshot, bool fit) {
+            const std::string& screenshot, bool fit, int window_w, int window_h) {
     std::ifstream map_in(map_path, std::ios::binary);
     if (!map_in) {
         ra2yr::log_error("cannot read ", map_path);
@@ -429,10 +432,12 @@ int run_map(const std::string& map_path, const std::string& install_dir,
     ra2yr::log_info("map ", map_path, ": theater ", map->theater(), ", ", map->width(), "x",
                     map->height(), ", ", map->cells().size(), " cells");
 #if defined(RA2YR_PLATFORM_SDL) && defined(RA2YR_RENDER_BGFX)
-    return run_viewer(*scene, "ra2yr map", screenshot, fit);
+    return run_viewer(*scene, "ra2yr map", screenshot, fit, window_w, window_h);
 #else
     static_cast<void>(screenshot);
     static_cast<void>(fit);
+    static_cast<void>(window_w);
+    static_cast<void>(window_h);
     ra2yr::log_error("map rendering requires RA2YR_ENABLE_SDL3 and RA2YR_ENABLE_BGFX");
     return 1;
 #endif
@@ -454,6 +459,8 @@ int main(int argc, char** argv) {
     std::string shp_out;
     std::string screenshot;
     bool fit = false;
+    int window_w = 1280;
+    int window_h = 800;
     int grid_cols = 16;
     int grid_rows = 16;
     enum class Mode { Game, List, Tree, Extract, Terrain, Map, Shp } mode = Mode::Game;
@@ -603,6 +610,19 @@ int main(int argc, char** argv) {
             }
             continue;
         }
+        if (std::strcmp(argv[i], "--window") == 0) {
+            if (i + 1 >= argc) {
+                std::fprintf(stderr, "--window requires WxH\n");
+                return 2;
+            }
+            const std::string value = argv[++i];
+            if (std::sscanf(value.c_str(), "%dx%d", &window_w, &window_h) != 2 ||
+                window_w <= 0 || window_h <= 0) {
+                std::fprintf(stderr, "invalid window: %s\n", value.c_str());
+                return 2;
+            }
+            continue;
+        }
         if (std::strcmp(argv[i], "--fit") == 0) {
             fit = true;
             continue;
@@ -646,10 +666,12 @@ int main(int argc, char** argv) {
             ra2yr::log_error("--map needs --install DIR");
             return 2;
         }
-        return run_map(map_file, install_dir, pal_file, theater_override, screenshot, fit);
+        return run_map(map_file, install_dir, pal_file, theater_override, screenshot, fit,
+                       window_w, window_h);
     }
     if (mode == Mode::Terrain) {
-        return run_terrain(tmp_file, pal_file, grid_cols, grid_rows, screenshot, fit);
+        return run_terrain(tmp_file, pal_file, grid_cols, grid_rows, screenshot, fit,
+                           window_w, window_h);
     }
     if (mode == Mode::List) {
         return list_mix(mix_file, names_ptr);
