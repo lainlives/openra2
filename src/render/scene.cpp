@@ -116,6 +116,8 @@ struct SpritePlacement {
     int y = 0;
     int foundation_w = 1;
     int foundation_h = 1;
+    int draw_x = 0;
+    int draw_y = 0;
 };
 
 void expand_bounds(const TileInstance& instance, bool* first, int* min_x, int* max_x,
@@ -410,6 +412,17 @@ std::optional<Scene> build_map_scene(const formats::MapFile& map, vfs::Vfs& vfs,
                 parse_foundation(*foundation, &foundation_w, &foundation_h);
             }
 
+            int draw_x = 0;
+            int draw_y = 0;
+            const std::string* xdraw = art.get(type, "xdrawoffset");
+            const std::string* ydraw = art.get(type, "ydrawoffset");
+            if (xdraw != nullptr) {
+                parse_int(*xdraw, &draw_x);
+            }
+            if (ydraw != nullptr) {
+                parse_int(*ydraw, &draw_y);
+            }
+
             const std::string cache_key = image + "|" + palette_name;
             auto cached = slot_for_image.find(cache_key);
             if (cached == slot_for_image.end()) {
@@ -434,7 +447,8 @@ std::optional<Scene> build_map_scene(const formats::MapFile& map, vfs::Vfs& vfs,
                 continue;
             }
             sprite_placements.push_back(
-                SpritePlacement{cached->second, x, y, foundation_w, foundation_h});
+                SpritePlacement{cached->second, x, y, foundation_w, foundation_h,
+                                draw_x, draw_y});
         }
     }
 
@@ -513,17 +527,17 @@ std::optional<Scene> build_map_scene(const formats::MapFile& map, vfs::Vfs& vfs,
     }
     for (const SpritePlacement& placement : sprite_placements) {
         const Image& image = images[static_cast<std::size_t>(placement.slot)];
-        // Engine placement, from the decompile:
-        //   BuildingClass::Render_Coord() = PositionCoord - (CELL/2, CELL/2, 0)
-        //   point = Coord_To_Pixel(Render_Coord()) = cell_to_screen(anchor) - (0, tile_h/2)
-        //   Draw_Shape(..., SHAPE_CENTER) centres the *full* frame on point, then
-        //   adds the frame's X/Y offset (already baked into our full-frame image).
-        // Foundation does not enter placement; Coord_Fixup only adds Z.
+        // Placement verified against CNCMaps (which renders retail-identical):
+        //   screen = tile_iso_pixel - full_frame/2 + frame.X/Y + XDrawOffset/YDrawOffset
+        // The frame X/Y offset is already baked into our full-frame image, so we
+        // place the full frame at p - full/2 plus the type's draw offset. The map
+        // cell is the top-left anchor; foundation only sets the depth footprint.
         const IsoPoint p = cell_to_screen(placement.x, placement.y, tile_w, tile_h);
         TileInstance instance;
-        instance.x = static_cast<float>(p.x) - static_cast<float>(image.w) * 0.5f;
-        instance.y = static_cast<float>(p.y) - static_cast<float>(tile_h) * 0.5f -
-                     static_cast<float>(image.h) * 0.5f;
+        instance.x = static_cast<float>(p.x) - static_cast<float>(image.w) * 0.5f +
+                     static_cast<float>(placement.draw_x);
+        instance.y = static_cast<float>(p.y) - static_cast<float>(image.h) * 0.5f +
+                     static_cast<float>(placement.draw_y);
         instance.width = static_cast<float>(image.w);
         instance.height = static_cast<float>(image.h);
         make_uv(image, &instance);

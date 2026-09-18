@@ -440,6 +440,11 @@ Reverse-chronological; evidence belongs in the owning docs.
   (`snowmd.mix` holds some civilian buildings). Superseded by the unified map
   scene above; remaining limits are no NewTheater per-theater letter
   substitution, no animation, and no house remap.
+- Building placement verified against CNCMaps (retail-identical): full frame at
+  `tile_iso_pixel - full_frame/2 + XDrawOffset/YDrawOffset`, foundation only for
+  the depth footprint. The earlier half-tile subtraction and foundation
+  centring were the consistent offset. Reference renderers added to the
+  evidence set (`reference/ccmaps-net`, `reference/FinalAlert 2`).
 - Building placement now follows the decompile exactly: the map cell is the
   anchor, `Render_Coord` shifts it by half a cell, and `Draw_Shape(SHAPE_CENTER)`
   centres the full SHP frame on that point before applying the frame offsets

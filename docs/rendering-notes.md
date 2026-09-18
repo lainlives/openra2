@@ -12,26 +12,21 @@ engineering. Each item is marked with where we stand.
   (`render/iso.h`); scene placement is integer arithmetic cast to float only at
   the end. Keep it that way, and use fixed-point if sub-cell placement is ever
   needed.
-- **Building anchor (resolved from the decompile).** The engine places a
-  building independently of its foundation:
-  - `BuildingClass::Render_Coord() = PositionCoord - (CELL_LEPTON/2,
-    CELL_LEPTON/2, 0)`; `Coord_Fixup` only adds Z, so foundation never enters
-    placement.
-  - `point = Coord_To_Pixel(Render_Coord())`, which is
-    `cell_to_screen(anchor) - (0, tile_height/2)`.
-  - `TechnoClass::Techno_Draw_Object` calls
-    `Draw_Shape(..., SHAPE_CENTER)`, and `Draw_Shape` does
-    `x -= full_width/2; y -= full_height/2; x += frame.X; y += frame.Y` before
-    blitting the cropped frame. So the **full frame is centred on `point`**,
-    then the frame's own X/Y offset is applied.
-  Our scene does the equivalent: draw the full frame at
-  `(point.x - fullW/2, point.y - fullH/2)`. The advice's "bottom-most footprint
-  corner" does not match the code; the map's stored cell is the anchor the SHP
-  is authored for. Foundation still sets the depth/sort footprint.
-- **Theater=yes art.** A type with `Theater=yes` uses theater-suffixed
-  extensions (`.tem`/`.sno`/`.urb`/`.ubn`/`.des`/`.lun`) instead of `.shp`.
-  *Status:* not implemented for sprites; noted. OpenTS is not a reference for
-  this RA2-specific feature.
+- **Building anchor (verified against CNCMaps, which renders retail-identical
+  images).** The map cell in `[Structures]` is the **top-left** of the
+  foundation. Placement ignores the foundation:
+  ```
+  screen.x = tile_iso_pixel.x - full_frame_width/2  + frame.X + XDrawOffset
+  screen.y = tile_iso_pixel.y - full_frame_height/2 + frame.Y + YDrawOffset
+  ```
+  `frame.X`/`frame.Y` are the SHP frame's offsets within the full frame, which
+  our full-frame decode already bakes in. `XDrawOffset`/`YDrawOffset` come from
+  art(md).ini. This also matches the engine decompile: `Draw_Shape(SHAPE_CENTER)`
+  centres the full frame on the draw point, and `BuildingClass::Render_Coord`
+  shifts by a constant half-cell that cancels into the map's global origin.
+  Foundation is used **only** for the depth/sort footprint (the front corner is
+  the object's `BottomTile`). An earlier implementation wrongly subtracted half
+  a tile and applied foundation centring; both are fixed.
 
 ## Palettes
 

@@ -16,7 +16,9 @@ the original behavior while running cleanly on modern Windows, Wine, and
   (needed CI fixtures).
 - `reference/` - **read-only evidence**. Never modify, and never commit it
   (it is git-ignored). It holds the retail install, OpenTS, YRpp/Phobos,
-  decompiler output, and extracted data.
+  decompiler output, extracted data, and map renderers/editors that reproduce
+  retail output (`reference/ccmaps-net/` - CNCMaps, verified retail-identical;
+  `reference/FinalAlert 2/` - the internal mission editor).
 
 ## Build and test
 
