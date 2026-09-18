@@ -12,14 +12,22 @@ engineering. Each item is marked with where we stand.
   (`render/iso.h`); scene placement is integer arithmetic cast to float only at
   the end. Keep it that way, and use fixed-point if sub-cell placement is ever
   needed.
-- **Building anchor.** Advice says a building anchors on the **bottom-most tile
-  corner of its footprint** and then applies the SHP frame's local X/Y offsets.
-  The engine code instead draws with `SHAPE_CENTER` on the object's draw point
-  (`TechnoClass::Techno_Draw_Object` -> `Draw_Shape(..., SHAPE_CENTER)`), which
-  centers the frame on that point. Our current implementation centers the
-  sprite on the foundation footprint and stands it on the bottom edge.
-  *Status:* unresolved. Needs a retail reference screenshot to decide; some
-  buildings look right and some are off. Document the winner here once known.
+- **Building anchor (resolved from the decompile).** The engine places a
+  building independently of its foundation:
+  - `BuildingClass::Render_Coord() = PositionCoord - (CELL_LEPTON/2,
+    CELL_LEPTON/2, 0)`; `Coord_Fixup` only adds Z, so foundation never enters
+    placement.
+  - `point = Coord_To_Pixel(Render_Coord())`, which is
+    `cell_to_screen(anchor) - (0, tile_height/2)`.
+  - `TechnoClass::Techno_Draw_Object` calls
+    `Draw_Shape(..., SHAPE_CENTER)`, and `Draw_Shape` does
+    `x -= full_width/2; y -= full_height/2; x += frame.X; y += frame.Y` before
+    blitting the cropped frame. So the **full frame is centred on `point`**,
+    then the frame's own X/Y offset is applied.
+  Our scene does the equivalent: draw the full frame at
+  `(point.x - fullW/2, point.y - fullH/2)`. The advice's "bottom-most footprint
+  corner" does not match the code; the map's stored cell is the anchor the SHP
+  is authored for. Foundation still sets the depth/sort footprint.
 - **Theater=yes art.** A type with `Theater=yes` uses theater-suffixed
   extensions (`.tem`/`.sno`/`.urb`/`.ubn`/`.des`/`.lun`) instead of `.shp`.
   *Status:* not implemented for sprites; noted. OpenTS is not a reference for

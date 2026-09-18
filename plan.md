@@ -440,6 +440,12 @@ Reverse-chronological; evidence belongs in the owning docs.
   (`snowmd.mix` holds some civilian buildings). Superseded by the unified map
   scene above; remaining limits are no NewTheater per-theater letter
   substitution, no animation, and no house remap.
+- Building placement now follows the decompile exactly: the map cell is the
+  anchor, `Render_Coord` shifts it by half a cell, and `Draw_Shape(SHAPE_CENTER)`
+  centres the full SHP frame on that point before applying the frame offsets
+  (which our full-frame decode already contains). Foundation no longer affects
+  placement, only the depth footprint. Awaiting a visual check against a retail
+  reference render.
 - Palette selection fixed: terrain tiles now use the theater terrain palette
   (`temperat.pal`/`urban.pal`/...) instead of the building/iso palette, and each
   structure picks its palette from art(md).ini/rules(md).ini

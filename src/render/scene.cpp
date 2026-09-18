@@ -513,29 +513,21 @@ std::optional<Scene> build_map_scene(const formats::MapFile& map, vfs::Vfs& vfs,
     }
     for (const SpritePlacement& placement : sprite_placements) {
         const Image& image = images[static_cast<std::size_t>(placement.slot)];
-        // Foundation footprint with the stored cell as the top-left corner. The
-        // sprite is centred horizontally on the footprint and stood on its
-        // bottom edge.
-        const IsoPoint left_cell = cell_to_screen(
-            placement.x, placement.y + placement.foundation_h - 1, tile_w, tile_h);
-        const IsoPoint right_cell = cell_to_screen(
-            placement.x + placement.foundation_w - 1, placement.y, tile_w, tile_h);
-        const IsoPoint bottom_cell = cell_to_screen(
-            placement.x + placement.foundation_w - 1,
-            placement.y + placement.foundation_h - 1, tile_w, tile_h);
-        const float left = static_cast<float>(left_cell.x);
-        const float right = static_cast<float>(right_cell.x + tile_w);
-        const float bottom = static_cast<float>(bottom_cell.y + tile_h);
-
+        // Engine placement, from the decompile:
+        //   BuildingClass::Render_Coord() = PositionCoord - (CELL/2, CELL/2, 0)
+        //   point = Coord_To_Pixel(Render_Coord()) = cell_to_screen(anchor) - (0, tile_h/2)
+        //   Draw_Shape(..., SHAPE_CENTER) centres the *full* frame on point, then
+        //   adds the frame's X/Y offset (already baked into our full-frame image).
+        // Foundation does not enter placement; Coord_Fixup only adds Z.
+        const IsoPoint p = cell_to_screen(placement.x, placement.y, tile_w, tile_h);
         TileInstance instance;
-        instance.x = (left + right) * 0.5f - static_cast<float>(image.w) * 0.5f;
-        instance.y = bottom - static_cast<float>(image.h);
+        instance.x = static_cast<float>(p.x) - static_cast<float>(image.w) * 0.5f;
+        instance.y = static_cast<float>(p.y) - static_cast<float>(tile_h) * 0.5f -
+                     static_cast<float>(image.h) * 0.5f;
         instance.width = static_cast<float>(image.w);
         instance.height = static_cast<float>(image.h);
         make_uv(image, &instance);
-        const int front = (placement.x + placement.foundation_w - 1) +
-                          (placement.y + placement.foundation_h - 1);
-        instance.depth = front * kDepthStride + kObjectLayer;
+        instance.depth = (placement.x + placement.y) * kDepthStride + kObjectLayer;
         scene.instances.push_back(instance);
         expand_bounds(instance, &first, &scene.min_x, &scene.max_x, &scene.min_y,
                       &scene.max_y);
