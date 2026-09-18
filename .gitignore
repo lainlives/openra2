@@ -31,6 +31,9 @@ venv/
 # Generated
 compile_commands.json
 
+#generated test datta
+screens/*
+
 # Editor swap/state
 *.kate-swp
 *.kate-swp.*
