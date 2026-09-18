@@ -73,3 +73,10 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build/gfx --output-on-failure
+
+
+      - name: Upload ra2yr artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ra2yr-${{ matrix.os }}
+          path: build/gfx/src/ra2yr*
