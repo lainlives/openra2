@@ -417,14 +417,8 @@ int run_map(const std::string& map_path, const std::string& install_dir,
         return 1;
     }
 
-    auto palette =
-        ra2yr::render::load_map_palette(*map, *vfs, palette_override, &error);
-    if (!palette) {
-        ra2yr::log_error("palette: ", error);
-        return 1;
-    }
-    auto scene =
-        ra2yr::render::build_map_scene(*map, *vfs, *palette, theater_override, &error);
+    auto scene = ra2yr::render::build_map_scene(*map, *vfs, palette_override,
+                                                theater_override, &error);
     if (!scene) {
         ra2yr::log_error("scene: ", error);
         return 1;

@@ -66,10 +66,7 @@ jobs:
 
       - name: Configure
         run: >
-          cmake -S . -B build/gfx -G Ninja
-          -DRA2YR_BUILD_TESTS=ON
-          -DRA2YR_ENABLE_SDL3=ON
-          -DRA2YR_ENABLE_BGFX=ON
+          cmake -S . -B build/gfx -G Ninja -DRA2YR_BUILD_TESTS=ON -DRA2YR_ENABLE_SDL3=ON -DRA2YR_ENABLE_BGFX=ON
 
       - name: Build
         run: cmake --build build/gfx

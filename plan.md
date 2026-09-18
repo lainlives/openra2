@@ -440,6 +440,14 @@ Reverse-chronological; evidence belongs in the owning docs.
   (`snowmd.mix` holds some civilian buildings). Superseded by the unified map
   scene above; remaining limits are no NewTheater per-theater letter
   substitution, no animation, and no house remap.
+- Palette selection fixed: terrain tiles now use the theater terrain palette
+  (`temperat.pal`/`urban.pal`/...) instead of the building/iso palette, and each
+  structure picks its palette from art(md).ini/rules(md).ini
+  (`TerrainPalette`/`AltPalette`/`AnimPalette`/`Palette=<base>`, else the
+  building/iso palette). The palette naming scheme and the unresolved building
+  anchor (advice says bottom footprint corner + SHP offsets; the code uses
+  `SHAPE_CENTER`) are recorded in `docs/rendering-notes.md`; a retail reference
+  screenshot is needed to settle the anchor.
 - Test fixtures adopted: synthesized CC0 SHPs (raw + RLE-Zero), maps
   (`[Lighting]`/trigger map, dense map in plain and `.yro` form, near-limit
   `.mpr`), and a CSF, under `tests/data/` with `tests/test_data.cpp`. The new

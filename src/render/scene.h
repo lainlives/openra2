@@ -51,23 +51,19 @@ struct Scene {
     std::size_t missing_sprites = 0;
 };
 
-// Load the theater palette for a map through the VFS, honouring an optional
-// loose override. Opens the palette and localization mixes.
-std::optional<formats::Palette> load_map_palette(const formats::MapFile& map,
-                                                 vfs::Vfs& vfs,
-                                                 const std::string& palette_override = {},
-                                                 std::string* error = nullptr);
-
 // Build a single-tile grid, used by the standalone terrain preview.
 Scene build_grid_scene(const std::vector<std::uint8_t>& tile_rgba, int tile_width,
                        int tile_height, int cols, int rows);
 
 // Build the full scene for a map: terrain tiles plus [Structures] sprites from
-// art(md).ini/rules(md).ini, packed together. `theater_override` forces the
-// theater used to resolve tiles (for prototype maps whose tile ids come from an
-// older theater).
+// art(md).ini/rules(md).ini, packed together. Terrain uses the theater terrain
+// palette; each structure picks its palette from art/rules (TerrainPalette,
+// AltPalette, AnimPalette, Palette=, else the building/iso palette).
+// `palette_override` is a loose palette file used for the terrain, and
+// `theater_override` forces the theater used to resolve tiles (for prototype
+// maps whose tile ids come from an older theater).
 std::optional<Scene> build_map_scene(const formats::MapFile& map, vfs::Vfs& vfs,
-                                     const formats::Palette& palette,
+                                     const std::string& palette_override = {},
                                      const std::string& theater_override = {},
                                      std::string* error = nullptr);
 

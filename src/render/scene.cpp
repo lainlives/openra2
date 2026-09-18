@@ -140,48 +140,6 @@ void expand_bounds(const TileInstance& instance, bool* first, int* min_x, int* m
 
 }  // namespace
 
-std::optional<formats::Palette> load_map_palette(const formats::MapFile& map,
-                                                 vfs::Vfs& vfs,
-                                                 const std::string& palette_override,
-                                                 std::string* error) {
-    const formats::TheaterInfo* info = formats::theater_info(map.theater());
-    if (info == nullptr) {
-        if (error != nullptr) {
-            *error = "unknown theater: " + map.theater();
-        }
-        return std::nullopt;
-    }
-    vfs.open_mix("cachemd.mix");
-    vfs.open_mix("cache.mix");
-    vfs.open_mix("localmd.mix");
-    vfs.open_mix("local.mix");
-
-    if (!palette_override.empty()) {
-        std::ifstream in(palette_override, std::ios::binary);
-        const std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(in)), {});
-        std::string palette_error;
-        if (auto parsed = formats::Palette::from_bytes(bytes, &palette_error)) {
-            return parsed;
-        }
-        if (error != nullptr) {
-            *error = "palette override: " + palette_error;
-        }
-        return std::nullopt;
-    }
-
-    const std::string name = lowercase(std::string(info->palette)) + ".pal";
-    if (auto bytes = vfs.read(name)) {
-        std::string palette_error;
-        if (auto parsed = formats::Palette::from_bytes(*bytes, &palette_error)) {
-            return parsed;
-        }
-    }
-    if (error != nullptr) {
-        *error = "cannot find theater palette " + name;
-    }
-    return std::nullopt;
-}
-
 Scene build_grid_scene(const std::vector<std::uint8_t>& tile_rgba, int tile_width,
                        int tile_height, int cols, int rows) {
     Scene scene;
@@ -212,7 +170,7 @@ Scene build_grid_scene(const std::vector<std::uint8_t>& tile_rgba, int tile_widt
 }
 
 std::optional<Scene> build_map_scene(const formats::MapFile& map, vfs::Vfs& vfs,
-                                     const formats::Palette& palette,
+                                     const std::string& palette_override,
                                      const std::string& theater_override,
                                      std::string* error) {
     const std::string theater_name =
@@ -240,6 +198,50 @@ std::optional<Scene> build_map_scene(const formats::MapFile& map, vfs::Vfs& vfs,
         }
         return {};
     };
+
+    // Palette cache. Westwood names palettes <base>.pal; terrain, unit, city
+    // and lib palettes append the theater suffix.
+    std::unordered_map<std::string, std::optional<formats::Palette>> palette_cache;
+    const auto get_palette = [&](const std::string& base) -> const formats::Palette* {
+        const std::string name = lowercase(base) + ".pal";
+        auto it = palette_cache.find(name);
+        if (it == palette_cache.end()) {
+            std::optional<formats::Palette> parsed;
+            if (auto bytes = vfs.read(name)) {
+                std::string palette_error;
+                parsed = formats::Palette::from_bytes(*bytes, &palette_error);
+            }
+            it = palette_cache.emplace(name, std::move(parsed)).first;
+        }
+        return it->second ? &*it->second : nullptr;
+    };
+    const auto truthy = [](const std::string* value) {
+        if (value == nullptr) {
+            return false;
+        }
+        const std::string text = lowercase(*value);
+        return text == "yes" || text == "true" || text == "1";
+    };
+
+    std::optional<formats::Palette> override_palette;
+    if (!palette_override.empty()) {
+        std::ifstream in(palette_override, std::ios::binary);
+        const std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(in)), {});
+        std::string palette_error;
+        override_palette = formats::Palette::from_bytes(bytes, &palette_error);
+    }
+    const formats::Palette* terrain_palette =
+        override_palette ? &*override_palette : get_palette(info->terrain);
+    if (terrain_palette == nullptr) {
+        if (error != nullptr) {
+            *error = std::string("cannot find terrain palette ") + info->terrain + ".pal";
+        }
+        return std::nullopt;
+    }
+    const formats::Palette* building_palette = get_palette(info->palette);
+    const formats::Palette* unit_palette =
+        get_palette(std::string("unit") + info->extension);
+    const formats::Palette* anim_palette = get_palette("anim");
 
     std::vector<Image> images;
     std::unordered_map<std::uint16_t, int> slot_for_tile;
@@ -309,7 +311,7 @@ std::optional<Scene> build_map_scene(const formats::MapFile& map, vfs::Vfs& vfs,
                     }
                     Image image;
                     image.rgba = tmp->to_rgba(tmp->tile(static_cast<std::size_t>(chosen)),
-                                              palette);
+                                              *terrain_palette);
                     image.w = tile_w;
                     image.h = tile_h;
                     if (image.rgba.size() <
@@ -378,6 +380,26 @@ std::optional<Scene> build_map_scene(const formats::MapFile& map, vfs::Vfs& vfs,
             }
             image = lowercase(image);
 
+            // Palette: TerrainPalette > AltPalette > AnimPalette > Palette= >
+            // the building/iso palette.
+            std::string palette_name = info->palette;
+            if (truthy(art.get(type, "terrainpalette")) ||
+                truthy(rules.get(type, "terrainpalette"))) {
+                palette_name = info->terrain;
+            } else if (truthy(art.get(type, "altpalette")) ||
+                       truthy(rules.get(type, "altpalette"))) {
+                palette_name = std::string("unit") + info->extension;
+            } else if (truthy(art.get(type, "animpalette")) ||
+                       truthy(rules.get(type, "animpalette"))) {
+                palette_name = "anim";
+            } else if (const std::string* named = art.get(type, "palette")) {
+                palette_name = lowercase(*named) + info->extension;
+            }
+            const formats::Palette* palette = get_palette(palette_name);
+            if (palette == nullptr) {
+                palette = building_palette != nullptr ? building_palette : terrain_palette;
+            }
+
             const std::string* foundation = art.get(type, "foundation");
             if (foundation == nullptr) {
                 foundation = rules.get(type, "foundation");
@@ -388,7 +410,8 @@ std::optional<Scene> build_map_scene(const formats::MapFile& map, vfs::Vfs& vfs,
                 parse_foundation(*foundation, &foundation_w, &foundation_h);
             }
 
-            auto cached = slot_for_image.find(image);
+            const std::string cache_key = image + "|" + palette_name;
+            auto cached = slot_for_image.find(cache_key);
             if (cached == slot_for_image.end()) {
                 int slot = -1;
                 const std::vector<std::uint8_t> shp_bytes = read_asset(image + ".shp");
@@ -397,14 +420,14 @@ std::optional<Scene> build_map_scene(const formats::MapFile& map, vfs::Vfs& vfs,
                     auto shp = formats::ShpFile::from_bytes(shp_bytes, &parse_error);
                     if (shp && shp->frame_count() > 0) {
                         Image sprite;
-                        sprite.rgba = shp->to_rgba(shp->frame(0), palette);
+                        sprite.rgba = shp->to_rgba(shp->frame(0), *palette);
                         sprite.w = shp->width();
                         sprite.h = shp->height();
                         slot = static_cast<int>(images.size());
                         images.push_back(std::move(sprite));
                     }
                 }
-                cached = slot_for_image.emplace(image, slot).first;
+                cached = slot_for_image.emplace(cache_key, slot).first;
             }
             if (cached->second < 0) {
                 ++missing_sprites;

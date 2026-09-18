@@ -10,12 +10,12 @@ namespace {
 // Order and names match the YR engine's Theater array (see YRpp Theater.h:
 // ID / ControlFileName / ArtFileName / PaletteFileName / Extension).
 constexpr TheaterInfo kTheaters[] = {
-    {"TEMPERATE", "temperat", "isotemp", "isotem", "tem"},
-    {"SNOW", "snow", "isosnow", "isosno", "sno"},
-    {"URBAN", "urban", "isourb", "isourb", "urb"},
-    {"DESERT", "desert", "isodes", "isodes", "des"},
-    {"LUNAR", "lunar", "isolun", "isolun", "lun"},
-    {"NEWURBAN", "urbann", "isoubn", "isoubn", "ubn"},
+    {"TEMPERATE", "temperat", "isotemp", "isotem", "temperat", "tem"},
+    {"SNOW", "snow", "isosnow", "isosno", "snow", "sno"},
+    {"URBAN", "urban", "isourb", "isourb", "urban", "urb"},
+    {"DESERT", "desert", "isodes", "isodes", "desert", "des"},
+    {"LUNAR", "lunar", "isolun", "isolun", "lunar", "lun"},
+    {"NEWURBAN", "urbann", "isoubn", "isoubn", "urbann", "ubn"},
 };
 
 }  // namespace

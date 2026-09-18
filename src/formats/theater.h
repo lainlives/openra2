@@ -27,10 +27,11 @@ struct TheaterTileSet {
 // control INI, the isometric tile MIX, the palette, and the tile extension.
 struct TheaterInfo {
     const char* id;
-    const char* control;   // e.g. "urban"   -> urbanmd.ini / urban.ini
-    const char* art;       // e.g. "isourb"  -> isourb.mix
-    const char* palette;   // e.g. "isourb"  -> isourb.pal
-    const char* extension; // e.g. "urb"
+    const char* control;   // e.g. "urban"    -> urbanmd.ini / urban.ini
+    const char* art;       // e.g. "isourb"   -> isourb.mix
+    const char* palette;   // building/iso palette, e.g. "isourb" -> isourb.pal
+    const char* terrain;   // terrain palette, e.g. "urban" -> urban.pal
+    const char* extension; // e.g. "urb"; also the suffix for unit/city/lib palettes
 };
 
 const TheaterInfo* theater_info(std::string_view theater_name);
